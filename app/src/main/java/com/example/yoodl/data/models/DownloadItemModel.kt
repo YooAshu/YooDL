@@ -50,7 +50,7 @@ data class YtData(
     val title: String,
     val url: String,
     val thumbnail: String,
-    val duration: String = "",
+    var duration: String = "",
     val channelName: String = "",
 )
 

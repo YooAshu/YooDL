@@ -21,10 +21,10 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
-import com.yausername.youtubedl_android.mapper.VideoInfo
+import com.example.yoodl.data.models.YtData
 
 @Composable
-fun ShowVideoInfo(info: VideoInfo, onDownloadClick: () -> Unit) {
+fun ShowVideoInfo(item: YtData, onDownloadClick: () -> Unit) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -33,7 +33,7 @@ fun ShowVideoInfo(info: VideoInfo, onDownloadClick: () -> Unit) {
         Column(modifier = Modifier.padding(16.dp)) {
             // Thumbnail
             AsyncImage(
-                model = info.thumbnail,
+                model = item.thumbnail,
                 contentDescription = "Thumbnail",
                 modifier = Modifier
                     .fillMaxWidth()
@@ -46,7 +46,7 @@ fun ShowVideoInfo(info: VideoInfo, onDownloadClick: () -> Unit) {
 
             // Title
             Text(
-                text = info.title ?: "No title",
+                text = item.title,
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold
             )
@@ -55,26 +55,27 @@ fun ShowVideoInfo(info: VideoInfo, onDownloadClick: () -> Unit) {
 
             // Uploader
             Text(
-                text = "By: ${info.uploader ?: "Unknown"}",
+                text = "By: ${item.channelName ?: "Unknown"}",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
             Spacer(modifier = Modifier.height(4.dp))
 
-            // Duration
-            info.duration?.let { duration ->
-                Text(
-                    text = "Duration: ${formatDuration(duration)}",
-                    style = MaterialTheme.typography.bodySmall
-                )
-            }
+//                         Duration
+
+            Text(
+                text = "Duration: ${convertDuration(item.duration)}",
+                style = MaterialTheme.typography.bodySmall
+            )
 
             Spacer(modifier = Modifier.height(8.dp))
 
             // Download button
             Button(
-                onClick = onDownloadClick,
+                onClick = {
+                    onDownloadClick()
+                },
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Icon(
@@ -88,17 +89,6 @@ fun ShowVideoInfo(info: VideoInfo, onDownloadClick: () -> Unit) {
     }
 }
 
-fun formatDuration(seconds: Int): String {
-    val hours = seconds / 3600
-    val minutes = (seconds % 3600) / 60
-    val secs = seconds % 60
-
-    return if (hours > 0) {
-        String.format("%d:%02d:%02d", hours, minutes, secs)
-    } else {
-        String.format("%d:%02d", minutes, secs)
-    }
-}
 fun convertDuration(isoDuration: String): String {
     return try {
         // Parse ISO 8601 duration format (PT10M30S)

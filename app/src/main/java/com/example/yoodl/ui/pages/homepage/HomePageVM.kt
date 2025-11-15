@@ -9,30 +9,22 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.yoodl.data.api.RetrofitInstance
 import com.example.yoodl.data.models.DownloadQueue
 import com.example.yoodl.data.models.DownloadStatus
 import com.example.yoodl.data.models.YtData
 import com.example.yoodl.data.repository.DownloadRepository
-import com.example.yoodl.ui.pages.downloads.DownloadPageVM
 import com.yausername.youtubedl_android.YoutubeDL
-import com.yausername.youtubedl_android.YoutubeDLRequest
 import com.yausername.youtubedl_android.mapper.VideoFormat
 import com.yausername.youtubedl_android.mapper.VideoInfo
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.json.JSONArray
-import org.json.JSONObject
 import java.io.File
-import java.io.IOException
 import javax.inject.Inject
-import kotlin.compareTo
 import kotlin.coroutines.cancellation.CancellationException
-import kotlin.sequences.ifEmpty
-import kotlin.text.ifEmpty
 import kotlin.text.isNotEmpty
 
 @HiltViewModel
@@ -44,83 +36,30 @@ class HomePageVM @Inject constructor(
         "YooDL/youtube"
     )
     val sharedUrl = mutableStateOf("")
-    var loadingInfo by mutableStateOf(false)
-    var streamInfo by mutableStateOf<VideoInfo?>(null)
-    var error by mutableStateOf<String?>(null)
-    private var infoJob: Job? = null
-    var availableFormats by mutableStateOf<List<VideoFormat>>(emptyList())
     var showDownloadSheet by mutableStateOf(false)
-    var showDownloadSheetPL by mutableStateOf(false)
-    var bottomSheetPLId by mutableStateOf("")
-    var bottomSheetPLUrl by mutableStateOf("")
+    var bottomSheetCurrentVideoId by mutableStateOf("")
+    var bottomSheetCurrentVideoUrl by mutableStateOf("")
     var lastFetchedPlaylistUrl by mutableStateOf("")
 
-    var playlistEntries by mutableStateOf<List<YtData>>(emptyList())
-    var loadingPlaylist by mutableStateOf(false)
+    var ytVideosInfoEntries by mutableStateOf<List<YtData>>(emptyList())
+    var loadingYTVideosInfo by mutableStateOf(false)
     var playListName by mutableStateOf("")
 
     // Cache of fetched formats (videoId -> VideoInfo)
-     val formatCache = mutableStateMapOf<String, VideoInfo?>()
+    val formatCache = mutableStateMapOf<String, VideoInfo?>()
 
     // Track which videos are currently loading formats
-     val loadingFormats = mutableStateMapOf<String, Boolean>()
+    val loadingFormats = mutableStateMapOf<String, Boolean>()
 
     // Active jobs for each video (to cancel when needed)
     private val fetchJobs = mutableMapOf<String, Job>()
 
 
-    fun getYTVideoInfo(url: String, onError: (Exception) -> Unit = {}, onSuccess: () -> Unit = {}) {
-        viewModelScope.launch {
-            // Cancel previous requests
-            infoJob?.cancel()
-
-            // Reset state
-            streamInfo = null
-            error = null
-
-            try {
-                // Start both operations concurrently
-                val deferred = async(Dispatchers.IO) {
-                    loadingInfo = true
-                    YoutubeDL.getInstance().getInfo(url)
-                }
-
-                // Await info first so UI updates fast
-                streamInfo = deferred.await()
-                loadingInfo = false
-                onSuccess()
-                loadVideoFormats()
-
-
-            } catch (e: Exception) {
-                if (e !is CancellationException) {
-                    error = e.message
-                    loadingInfo = false
-                    onError(e)
-                }
-            }
-        }
-    }
-
-
-    private fun loadVideoFormats() {
-        availableFormats = streamInfo?.formats
-            ?.filter { format ->
-                format.vcodec != null &&
-                        format.vcodec != "none" &&
-                        format.height != null &&
-                        format.height > 0
-            }
-            ?.sortedByDescending { it.height }
-            ?.distinctBy { it.height }
-            ?: emptyList()
-    }
-
     fun downloadFormat(
         url: String,
-        videoId:String="",
-        title: String="Download",
-        thumbnail: String="",
+        videoId: String = "",
+        title: String = "Download",
+        thumbnail: String = "",
         format: VideoFormat?,
         isAudio: Boolean,
         onQueue: (DownloadQueue) -> Unit
@@ -172,28 +111,29 @@ class HomePageVM @Inject constructor(
     }
 
 
-
-    fun handleSharedOrTypedUrl(
+    fun handleYTLink(
         inputUrl: String,
         onError: (Exception) -> Unit = {},
         onSuccessPerVideo: (String) -> Unit = {}
     ) {
         if (inputUrl.isBlank()) return
-
         // Skip if same URL was already successfully fetched
-        if (inputUrl == lastFetchedPlaylistUrl && playlistEntries.isNotEmpty()) {
+        if (inputUrl == lastFetchedPlaylistUrl && ytVideosInfoEntries.isNotEmpty()) {
             return
         }
 
         viewModelScope.launch {
+            //change
+            loadingYTVideosInfo = true
+            ytVideosInfoEntries = emptyList()
+            formatCache.clear()
+            loadingFormats.clear()
+            fetchJobs.clear()
             if (isPlaylistUrl(inputUrl)) {
-                loadingPlaylist = true
-                playlistEntries = emptyList()
-
                 val playlistId = extractPlaylistId(inputUrl)
                 if (playlistId.isBlank()) {
                     onError(Exception("Invalid playlist URL"))
-                    loadingPlaylist = false
+                    loadingYTVideosInfo = false
                     return@launch
                 }
 
@@ -205,12 +145,36 @@ class HomePageVM @Inject constructor(
                     emptyList()
                 }
 
-                playlistEntries = entries
+                ytVideosInfoEntries = entries
                 lastFetchedPlaylistUrl = inputUrl
-                loadingPlaylist = false
+                loadingYTVideosInfo = false
 
                 if (entries.isEmpty()) {
                     onError(Exception("No playlist entries found"))
+                }
+            } else {
+                if (isValidYouTubeVideoUrl(inputUrl)) {
+                    val videoId = extractVideoIdFromUrl(inputUrl)
+                    if (videoId == null) {
+                        onError(Exception("Invalid video URL"))
+                        loadingYTVideosInfo = true
+                        return@launch
+                    }
+                    val entry = try {
+                        fetchSingleVideoViaAPI(videoId)
+                    } catch (
+                        e: Exception
+                    ) {
+                        Log.e("HandleURL", "Error: ${e.message}", e)
+                        onError(e)
+                        null
+                    }
+                    ytVideosInfoEntries = listOfNotNull(entry)
+                    lastFetchedPlaylistUrl = inputUrl
+                    loadingYTVideosInfo = false
+                }
+                else{
+                    //handle invalid yt url
                 }
             }
         }
@@ -219,135 +183,115 @@ class HomePageVM @Inject constructor(
     private suspend fun fetchPlaylistEntriesViaAPI(playlistId: String): List<YtData> {
         return withContext(Dispatchers.IO) {
             try {
-                val results = mutableListOf<YtData>()
-                val videoIds = mutableListOf<String>()
-                var pageToken = ""
                 val apiKey = "AIzaSyDKmZ1uGGBCZcv04dQ9F-aiLKvfQEfAyOw"
+                val service = RetrofitInstance.getYouTubeApiService()
 
                 // Fetch playlist name
-                val playlistUrl = "https://www.googleapis.com/youtube/v3/playlists?" +
-                        "part=snippet&" +
-                        "id=$playlistId&" +
-                        "key=$apiKey"
+                val playlistResponse = service.getPlaylistInfo("snippet", playlistId, apiKey)
+                playListName = playlistResponse.items.firstOrNull()?.snippet?.title ?: "Unknown"
 
-                val playlistConnection = java.net.URL(playlistUrl).openConnection() as java.net.HttpURLConnection
-                playlistConnection.requestMethod = "GET"
-                val playlistResponse = playlistConnection.inputStream.bufferedReader().use { it.readText() }
-                val playlistJson = JSONObject(playlistResponse)
-                val playlistItems = playlistJson.optJSONArray("items")
-                if (playlistItems != null && playlistItems.length() > 0) {
-                    playListName = playlistItems.getJSONObject(0).optJSONObject("snippet")?.optString("title") ?: "Unknown"
-                }
+                // Fetch all video IDs - title - thumbnail - title
+                val results =  mutableMapOf<String, YtData?>()
+                val videoIds = mutableListOf<String>()
+                var pageToken = ""
+                do {
+                    val itemsResponse = service.getPlaylistItems(
+                        "contentDetails,snippet",
+                        playlistId,
+                        50,
+                        pageToken,
+                        apiKey
+                    )
+                    itemsResponse.items.forEach { item ->
+                        val videoId = item.contentDetails?.videoId ?: return@forEach
+                        results[videoId]=
+                            YtData(
+                                id = videoId,
+                                title = item.snippet?.title ?: "Unknown",
+                                url = "https://www.youtube.com/watch?v=$videoId",
+                                thumbnail = item.snippet?.thumbnails?.maxres?.url
+                                    ?: item.snippet?.thumbnails?.high?.url ?: "",
+                                duration = "",
+                                channelName = item.snippet?.channelTitle ?: "Unknown"
+                            )
 
-
-                // Collect all video IDs first
-                while (true) {
-                    val urlString = "https://www.googleapis.com/youtube/v3/playlistItems?" +
-                            "part=contentDetails,snippet&" +
-                            "playlistId=$playlistId&" +
-                            "maxResults=50&" +
-                            "key=$apiKey" +
-                            (if (pageToken.isNotEmpty()) "&pageToken=$pageToken" else "")
-
-                    val url = java.net.URL(urlString)
-                    val connection = url.openConnection() as java.net.HttpURLConnection
-                    connection.requestMethod = "GET"
-
-                    val response = connection.inputStream.bufferedReader().use { it.readText() }
-                    val json = JSONObject(response)
-                    val items = json.optJSONArray("items") ?: break
-
-                    for (i in 0 until items.length()) {
-                        val item = items.getJSONObject(i)
-                        val videoId = item.optJSONObject("contentDetails")?.optString("videoId") ?: continue
-                        videoIds.add(videoId)
                     }
+                    videoIds.addAll(itemsResponse.items.mapNotNull { it.contentDetails?.videoId })
+                    pageToken = itemsResponse.nextPageToken ?: ""
+                } while (pageToken.isNotEmpty())
 
-                    pageToken = json.optString("nextPageToken")
-                    if (pageToken.isEmpty()) break
-                }
-
-                // Get durations in batches of 50
-                val durationMap = mutableMapOf<String, String>()
+                // Fetch durations in batches
                 for (i in videoIds.indices step 50) {
                     val ids = videoIds.subList(i, minOf(i + 50, videoIds.size)).joinToString(",")
-                    val videosUrl = "https://www.googleapis.com/youtube/v3/videos?" +
-                            "part=contentDetails&" +
-                            "id=$ids&" +
-                            "key=$apiKey"
-
-                    val url = java.net.URL(videosUrl)
-                    val connection = url.openConnection() as java.net.HttpURLConnection
-                    connection.requestMethod = "GET"
-
-                    val response = connection.inputStream.bufferedReader().use { it.readText() }
-                    val json = JSONObject(response)
-                    val videos = json.optJSONArray("items") ?: continue
-
-                    for (j in 0 until videos.length()) {
-                        val video = videos.getJSONObject(j)
-                        val id = video.optString("id")
-                        val duration = video.optJSONObject("contentDetails")?.optString("duration") ?: ""
-                        durationMap[id] = duration
+                    val videosResponse = service.getVideoDurations("contentDetails", ids, apiKey)
+                    videosResponse.items.forEach { video ->
+                        results[video.id]?.duration = video.contentDetails?.duration ?: ""
                     }
-                }
-
-                // Final pass: combine all data
-                pageToken = ""
-                while (true) {
-                    val urlString = "https://www.googleapis.com/youtube/v3/playlistItems?" +
-                            "part=contentDetails,snippet&" +
-                            "playlistId=$playlistId&" +
-                            "maxResults=50&" +
-                            "key=$apiKey" +
-                            (if (pageToken.isNotEmpty()) "&pageToken=$pageToken" else "")
-
-                    val url = java.net.URL(urlString)
-                    val connection = url.openConnection() as java.net.HttpURLConnection
-                    connection.requestMethod = "GET"
-
-                    val response = connection.inputStream.bufferedReader().use { it.readText() }
-                    val json = JSONObject(response)
-                    val items = json.optJSONArray("items") ?: break
-
-                    for (i in 0 until items.length()) {
-                        val item = items.getJSONObject(i)
-                        val videoId = item.optJSONObject("contentDetails")?.optString("videoId") ?: continue
-                        val title = item.optJSONObject("snippet")?.optString("title") ?: "Unknown"
-                        val channelName = item.optJSONObject("snippet")?.optString("channelTitle") ?: "Unknown"
-                        val duration = durationMap[videoId] ?: ""
-                        val thumbnailUrl = item.optJSONObject("snippet")
-                            ?.optJSONObject("thumbnails")
-                            ?.optJSONObject("maxres")
-                            ?.optString("url")
-                            ?: item.optJSONObject("snippet")
-                                ?.optJSONObject("thumbnails")
-                                ?.optJSONObject("high")
-                                ?.optString("url")
-                            ?: ""
-
-                        val ytItem = YtData(
-                            id = videoId,
-                            title = title,
-                            url = "https://www.youtube.com/watch?v=$videoId",
-                            thumbnail = thumbnailUrl,
-                            duration = duration,
-                            channelName = channelName
-                        )
-                        results.add(ytItem)
-                    }
-
-                    pageToken = json.optString("nextPageToken")
-                    if (pageToken.isEmpty()) break
                 }
 
                 Log.d("PlaylistAPI", "Fetched ${results.size} videos from API")
-                results
+                results.values.filterNotNull().toList()
             } catch (e: Exception) {
                 Log.e("PlaylistAPI", "Error: ${e.message}", e)
                 emptyList()
             }
         }
+    }
+
+    private suspend fun fetchSingleVideoViaAPI(videoId: String): YtData? {
+        return withContext(Dispatchers.IO) {
+            try {
+                val apiKey = "AIzaSyDKmZ1uGGBCZcv04dQ9F-aiLKvfQEfAyOw"
+                val service = RetrofitInstance.getYouTubeApiService()
+
+                val videosResponse = service.getSingleVideoInfo(
+                    "snippet,contentDetails",
+                    videoId,
+                    apiKey
+                )
+
+                val videoItem = videosResponse.items.firstOrNull() ?: return@withContext null
+
+                YtData(
+                    id = videoItem.id,
+                    title = videoItem.snippet?.title ?: "Unknown",
+                    url = "https://www.youtube.com/watch?v=${videoItem.id}",
+                    thumbnail = videoItem.snippet?.thumbnails?.maxres?.url
+                        ?: videoItem.snippet?.thumbnails?.high?.url ?: "",
+                    duration = videoItem.contentDetails?.duration ?: "",
+                    channelName = videoItem.snippet?.channelTitle ?: "Unknown"
+                )
+            } catch (e: Exception) {
+                Log.e("SingleVideoAPI", "Error: ${e.message}", e)
+                null
+            }
+        }
+    }
+
+
+
+    fun extractVideoIdFromUrl(url: String): String? {
+        return try {
+            when {
+                // Standard youtube.com format: https://www.youtube.com/watch?v=VIDEO_ID
+                url.contains("youtube.com/watch") -> {
+                    url.split("v=")[1].split("&")[0]
+                }
+                // Short youtu.be format: https://youtu.be/VIDEO_ID
+                url.contains("youtu.be/") -> {
+                    url.split("youtu.be/")[1].split("?")[0].split("&")[0]
+                }
+
+                else -> null
+            }
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    fun isValidYouTubeVideoUrl(url: String): Boolean {
+        val videoId = extractVideoIdFromUrl(url)
+        return videoId != null && videoId.length == 11 && videoId.matches(Regex("[a-zA-Z0-9_-]+"))
     }
 
 
@@ -360,7 +304,7 @@ class HomePageVM @Inject constructor(
         }
     }
 
-    fun fetchFormatsForVideo(videoId: String, videoUrl: String){
+    fun fetchFormatsForVideo(videoId: String, videoUrl: String) {
         // If already cached, return immediately
         if (formatCache.containsKey(videoId)) {
             Log.d("Formats", "Using cached formats for $videoId")
@@ -433,7 +377,6 @@ class HomePageVM @Inject constructor(
         super.onCleared()
         cancelAllFormatFetches()
     }
-
 
 
 }

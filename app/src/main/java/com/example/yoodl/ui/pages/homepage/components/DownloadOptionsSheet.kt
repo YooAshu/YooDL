@@ -31,64 +31,7 @@ fun DownloadOptionsSheet(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Text("Download Audio")
-        Button(
-            onClick = {
-                viewModel.downloadFormat(
-                    viewModel.streamInfo?.webpageUrl ?: "",
-                    format = null,
-                    isAudio = true,
-                    onQueue = { queueItem ->
-                        onQueue(queueItem)
-                        Toast.makeText(context, "Audio added to queue", Toast.LENGTH_SHORT).show()
-                    }
-                )
-                onDismiss()
-            },
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("Audio (MP3)")
-        }
-
-        Text("Download Video")
-        viewModel.availableFormats.forEach { format ->
-            val quality = format.height?.let { "${it}p" } ?: "Unknown"
-            Button(
-                onClick = {
-                    viewModel.downloadFormat(
-                        viewModel.streamInfo?.webpageUrl ?: "",
-                        format = format,
-                        isAudio = false,
-                        onQueue = {queueItem ->
-                            onQueue(queueItem)
-                            Toast.makeText(context, "Video added to queue", Toast.LENGTH_SHORT).show()
-                        }
-                    )
-                    onDismiss()
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(quality)
-            }
-        }
-    }
-}
-
-
-@Composable
-fun DownloadOptionsSheetPL(
-    viewModel: HomePageVM,
-    onQueue:(DownloadQueue) -> Unit,
-    onDismiss: () -> Unit
-) {
-    val context = LocalContext.current
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        if(viewModel.isLoadingFormats(videoId = viewModel.bottomSheetPLId)){
+        if(viewModel.isLoadingFormats(videoId = viewModel.bottomSheetCurrentVideoId)){
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -104,10 +47,10 @@ fun DownloadOptionsSheetPL(
             Button(
                 onClick = {
                     viewModel.downloadFormat(
-                        url = viewModel.bottomSheetPLUrl,
-                        videoId = viewModel.bottomSheetPLId,
-                        title = viewModel.formatCache[viewModel.bottomSheetPLId]?.title ?:"Download",
-                        thumbnail = viewModel.formatCache[viewModel.bottomSheetPLId]?.thumbnail ?:"",
+                        url = viewModel.bottomSheetCurrentVideoUrl,
+                        videoId = viewModel.bottomSheetCurrentVideoId,
+                        title = viewModel.formatCache[viewModel.bottomSheetCurrentVideoId]?.title ?:"Download",
+                        thumbnail = viewModel.formatCache[viewModel.bottomSheetCurrentVideoId]?.thumbnail ?:"",
                         format = null,
                         isAudio = true,
                         onQueue = { queueItem ->
@@ -124,16 +67,16 @@ fun DownloadOptionsSheetPL(
             }
 
             Text("Download Video")
-            val availableFormats = viewModel.getFormats(videoId = viewModel.bottomSheetPLId)
+            val availableFormats = viewModel.getFormats(videoId = viewModel.bottomSheetCurrentVideoId)
             availableFormats?.forEach { format ->
                 val quality = format.height.let { "${it}p" }
                 Button(
                     onClick = {
                         viewModel.downloadFormat(
-                            url = viewModel.bottomSheetPLUrl,
-                            videoId = viewModel.bottomSheetPLId,
-                            title = viewModel.formatCache[viewModel.bottomSheetPLId]?.title ?:"Download",
-                            thumbnail = viewModel.formatCache[viewModel.bottomSheetPLId]?.thumbnail ?:"",
+                            url = viewModel.bottomSheetCurrentVideoUrl,
+                            videoId = viewModel.bottomSheetCurrentVideoId,
+                            title = viewModel.formatCache[viewModel.bottomSheetCurrentVideoId]?.title ?:"Download",
+                            thumbnail = viewModel.formatCache[viewModel.bottomSheetCurrentVideoId]?.thumbnail ?:"",
                             format = format,
                             isAudio = false,
                             onQueue = { queueItem ->
