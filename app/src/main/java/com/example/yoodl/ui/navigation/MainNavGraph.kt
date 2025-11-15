@@ -8,27 +8,35 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import com.example.yoodl.ui.pages.downloads.DownloadPageScreen
+import com.example.yoodl.ui.pages.downloads.DownloadPageVM
 import com.example.yoodl.ui.pages.homepage.HomePageScreen
+import com.example.yoodl.ui.pages.homepage.HomePageVM
 
 @Composable
-fun MainNavGraph(navController: NavHostController, modifier: Modifier = Modifier) {
+fun MainNavGraph(navController: NavHostController, modifier: Modifier = Modifier,homePageVM: HomePageVM) {
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = modifier) {
-
+            val downloadPageVM : DownloadPageVM = hiltViewModel()
 
             NavHost(
                 navController = navController,
                 startDestination = Routes.HOME,
             ) {
                 composable(Routes.HOME) {
-                    HomePageScreen()
+                    HomePageScreen(
+                        viewModel = homePageVM,
+                        downloadPageVM = downloadPageVM,
+                    )
                 }
                 composable(Routes.DOWNLOADS) {
-                    DownloadPageScreen()
+                    DownloadPageScreen(
+                        viewModel = downloadPageVM
+                    )
                 }
             }
 

@@ -99,3 +99,22 @@ fun formatDuration(seconds: Int): String {
         String.format("%d:%02d", minutes, secs)
     }
 }
+fun convertDuration(isoDuration: String): String {
+    return try {
+        // Parse ISO 8601 duration format (PT10M30S)
+        val regex = Regex("PT(?:(\\d+)H)?(?:(\\d+)M)?(?:(\\d+)S)?")
+        val matchResult = regex.find(isoDuration)
+
+        val hours = matchResult?.groupValues?.get(1)?.toIntOrNull() ?: 0
+        val minutes = matchResult?.groupValues?.get(2)?.toIntOrNull() ?: 0
+        val seconds = matchResult?.groupValues?.get(3)?.toIntOrNull() ?: 0
+
+        when {
+            hours > 0 -> String.format("%d:%02d:%02d", hours, minutes, seconds)
+            minutes > 0 -> String.format("%d:%02d", minutes, seconds)
+            else -> String.format("0:%02d", seconds)
+        }
+    } catch (e: Exception) {
+        "0:00"
+    }
+}

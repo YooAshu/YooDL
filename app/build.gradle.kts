@@ -80,5 +80,7 @@ dependencies {
     implementation("androidx.hilt:hilt-navigation-compose:1.2.0")
 
 //    implementation("net.jthink:jaudiotagger:3.0.1")
+    implementation("com.squareup.retrofit2:retrofit:2.9.0")
+    implementation("com.squareup.retrofit2:converter-gson:2.9.0")
 
 }

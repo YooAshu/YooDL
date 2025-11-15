@@ -1,15 +1,26 @@
 package com.example.yoodl.data.repository
 
+import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.media.MediaMetadataRetriever
 import com.example.yoodl.data.models.DownloadItem
 import android.os.Environment
 import android.util.Log
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import com.example.yoodl.data.models.DownloadQueue
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.UUID
 import javax.inject.Inject
 
-class DownloadRepository @Inject constructor() {
+class DownloadRepository @Inject constructor(
+    @ApplicationContext private val context: Context
+) {
 
     private val baseDownloadDir = File(
         Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
@@ -57,8 +68,14 @@ class DownloadRepository @Inject constructor() {
 
         dir.listFiles()?.forEach { file ->
             // Skip .info.json and image files
-            if (!file.name.endsWith(".info.json") && !isImageFile(file) && file.isFile) {
-                val thumbnail = findThumbnail(file.nameWithoutExtension) ?: extractThumbnailFromMediaFile(file)
+            if (file.isFile && !file.name.endsWith(".info.json") && !file.name.startsWith(".") && !isImageFile(file)) {
+                val thumbnail = if(file.extension =="mp3") {
+                    getEmbeddedThumbnail(file)
+                } else {
+                    val cached = loadCachedThumbnail( file)
+                    cached ?: getVideoFrame(file)
+                }
+
 
 
                 items.add(
@@ -78,54 +95,58 @@ class DownloadRepository @Inject constructor() {
         return items
     }
 
+
     /**
      * Find thumbnail file in thumbnails folder
      */
-    private fun findThumbnail(fileName: String): String? {
-        val imageExtensions = listOf("jpg", "jpeg", "png", "webp")
 
-        for (ext in imageExtensions) {
-            val thumbnailFile = File(thumbnailDir, "$fileName.$ext")
-            if (thumbnailFile.exists()) {
-                return thumbnailFile.absolutePath
-            }
+
+    fun getEmbeddedThumbnail(file: File?): Bitmap? {
+        if(file==null) return null
+        val retriever = MediaMetadataRetriever()
+        return try {
+            retriever.setDataSource(file.absolutePath)
+            val data = retriever.embeddedPicture
+            data?.let { android.graphics.BitmapFactory.decodeByteArray(it, 0, it.size) }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        } finally {
+            retriever.release()
         }
-
-        return null
     }
 
-    private fun extractThumbnailFromMediaFile(file: File): String? {
+    fun getVideoFrame(file: File?): Bitmap? {
+        if (file == null || !file.exists()) return null
+        val retriever = MediaMetadataRetriever()
         return try {
-            Log.d("DownloadRepository", "Extracting thumbnail from media file: ${file.absolutePath}")
-            val retriever = android.media.MediaMetadataRetriever()
             retriever.setDataSource(file.absolutePath)
-            val embeddedPicture = retriever.embeddedPicture
+            // 0 microseconds = very first frame
+            retriever.getFrameAtTime(0)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        } finally {
             retriever.release()
+        }
+    }
 
-            if (embeddedPicture != null) {
-                val bitmap = android.graphics.BitmapFactory.decodeByteArray(embeddedPicture, 0, embeddedPicture.size)
-
-                if (bitmap != null) {
-                    thumbnailDir.mkdirs()
-                    val thumbnailFile = File(thumbnailDir, "${file.nameWithoutExtension}.png")
-                    thumbnailFile.outputStream().use { output ->
-                        android.graphics.Bitmap.createScaledBitmap(bitmap, 200, 200, true)
-                            .compress(android.graphics.Bitmap.CompressFormat.PNG, 80, output)
-                    }
-                    Log.d("DownloadRepository", "Thumbnail extracted: ${thumbnailFile.absolutePath}")
-                    thumbnailFile.absolutePath
-                } else {
-                    Log.d("DownloadRepository", "Thumbnail not extracted: Bitmap is null")
-                    null
-                }
-            } else {
-                Log.d("DownloadRepository", "Thumbnail not extracted: Embedded picture is null")
-                null
+    fun cacheThumbnail(file: File?, thumbnailBitmap: Bitmap?) {
+        if (file == null || thumbnailBitmap == null) return
+        try {
+            val cacheFile = File(context.cacheDir, "${file.nameWithoutExtension}.jpg")
+            if (!cacheFile.exists()) {
+                thumbnailBitmap.compress(Bitmap.CompressFormat.JPEG, 85, cacheFile.outputStream())
             }
         } catch (e: Exception) {
-            Log.e("DownloadRepository", "Error extracting thumbnail: ${e.message}")
-            null
+            e.printStackTrace()
         }
+    }
+
+
+    fun loadCachedThumbnail(file: File): Bitmap? {
+        val cacheFile = File(context.cacheDir, "${file.nameWithoutExtension}.jpg")
+        return if (cacheFile.exists()) BitmapFactory.decodeFile(cacheFile.absolutePath) else null
     }
 
 
@@ -163,6 +184,7 @@ class DownloadRepository @Inject constructor() {
         }
     }
 
+
     fun getFormattedFileSize(bytes: Long): String {
         return when {
             bytes >= 1024 * 1024 * 1024 -> String.format("%.2f GB", bytes / (1024.0 * 1024 * 1024))
@@ -176,4 +198,6 @@ class DownloadRepository @Inject constructor() {
         val sdf = java.text.SimpleDateFormat("MMM dd, yyyy HH:mm", java.util.Locale.getDefault())
         return sdf.format(java.util.Date(timestamp))
     }
+
+
 }

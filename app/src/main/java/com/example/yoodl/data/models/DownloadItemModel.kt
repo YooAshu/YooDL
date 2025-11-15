@@ -1,5 +1,6 @@
 package com.example.yoodl.data.models
 
+import android.graphics.Bitmap
 import com.yausername.youtubedl_android.mapper.VideoFormat
 
 data class DownloadItem(
@@ -9,7 +10,7 @@ data class DownloadItem(
     val fileSize: Long,
     val dateAdded: Long,
     val type: String,
-    val thumbnail: String?
+    val thumbnail: Bitmap?
 )
 
 
@@ -33,7 +34,7 @@ data class DownloadQueue(
     val eta: Long = 0,
     val createdAt: Long = System.currentTimeMillis(),
     val filePath: String,
-    val thumbnail: String?
+    var thumbnail: String?
 )
 
 enum class DownloadStatus {
@@ -43,3 +44,13 @@ enum class DownloadStatus {
     FAILED,
     CANCELLED
 }
+
+data class YtData(
+    val id: String,
+    val title: String,
+    val url: String,
+    val thumbnail: String,
+    val duration: String = "",
+    val channelName: String = "",
+)
+
