@@ -1,5 +1,6 @@
 package com.example.yoodl.ui.pages.homepage.components
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -11,17 +12,21 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardColors
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.example.yoodl.data.models.YtData
+import com.example.yoodl.ui.pages.homepage.glassCard
 
 @Composable
 fun ShowVideoInfo(item: YtData, onDownloadClick: () -> Unit) {
@@ -29,6 +34,10 @@ fun ShowVideoInfo(item: YtData, onDownloadClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .padding(16.dp)
+            .glassCard(),
+        colors = CardDefaults.cardColors(
+            containerColor = Color.Transparent
+        )
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             // Thumbnail
@@ -106,5 +115,16 @@ fun convertDuration(isoDuration: String): String {
         }
     } catch (e: Exception) {
         "0:00"
+    }
+}
+
+fun formatFileSize(bytes: Long?): String {
+    if (bytes == null || bytes == 0L) return ""
+
+    return when {
+        bytes < 1024 -> "-$bytes B"
+        bytes < 1024 * 1024 -> String.format("-%.1f KB", bytes / 1024.0)
+        bytes < 1024 * 1024 * 1024 -> String.format("-%.1f MB", bytes / (1024.0 * 1024.0))
+        else -> String.format("-%.2f GB", bytes / (1024.0 * 1024.0 * 1024.0))
     }
 }

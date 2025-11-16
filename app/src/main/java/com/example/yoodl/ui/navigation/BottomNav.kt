@@ -24,17 +24,19 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
+import com.example.yoodl.ui.pages.homepage.glassCard
 
 @Composable
 fun BottomNav(navController: NavHostController, modifier: Modifier = Modifier) {
 
     NavigationBar(
-        containerColor = Color(0xFF474747),
+        containerColor = Color(0xFF090228),
         modifier = modifier
             .height(70.dp)
             .width(140.dp)
             .padding(5.dp)
-            .clip(RoundedCornerShape(100)),
+            .clip(RoundedCornerShape(100))
+            .glassCard(),
         windowInsets = WindowInsets(0)
     ) {
         val navBackStackEntry by navController.currentBackStackEntryAsState()

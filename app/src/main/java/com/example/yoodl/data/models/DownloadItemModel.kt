@@ -10,7 +10,8 @@ data class DownloadItem(
     val fileSize: Long,
     val dateAdded: Long,
     val type: String,
-    val thumbnail: Bitmap?
+    val thumbnail: Bitmap?,
+//    val platform:String
 )
 
 
@@ -42,7 +43,8 @@ enum class DownloadStatus {
     DOWNLOADING,
     COMPLETED,
     FAILED,
-    CANCELLED
+    CANCELLED,
+    PAUSED
 }
 
 data class YtData(

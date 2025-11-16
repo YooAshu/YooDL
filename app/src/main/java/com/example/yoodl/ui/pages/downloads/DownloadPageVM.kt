@@ -126,14 +126,14 @@ class DownloadPageVM @Inject constructor(
                     request.addOption("--add-metadata", "")
 
                     if (currentItem.isAudio) {
-                        request.addOption("-f", "worst[acodec!=none]")
-                        request.addOption("-x", "")
-                        request.addOption("--audio-format", "mp3")
+                        request.addOption("-f", "bestaudio")
+                        request.addOption("-x") // Extract audio
+                        request.addOption("--audio-format", "mp3") // ← MP3 supports embedded thumbnails
                         request.addOption("--audio-quality", "192")
-                        request.addOption("--embed-thumbnail", "")
-                        request.addOption("--write-thumbnail", "")
+                        request.addOption("--embed-thumbnail") // Embed thumbnail in MP3
+                        request.addOption("--write-thumbnail") // Download thumbnail first
+                        request.addOption("--convert-thumbnails", "jpg") // Convert to JPG (MP3 compatible)
                         request.addOption("-o", "${downloadDir.absolutePath}/%(title)s.%(ext)s")
-
                     } else {
                         if (currentItem.format != null) {
                             if (currentItem.format.acodec == null || currentItem.format.acodec == "none") {
@@ -142,8 +142,8 @@ class DownloadPageVM @Inject constructor(
                                 request.addOption("-f", currentItem.format.formatId!!)
                             }
                             val quality = currentItem.format.height?.let { "${it}p" } ?: "unknown"
-                            request.addOption("--write-thumbnail", "")
-                            request.addOption("-o", "${downloadDir.absolutePath}/%(title)s ${quality}.%(ext)s")
+//                            request.addOption("--write-thumbnail", "")
+                            request.addOption("-o", "${downloadDir.absolutePath}/%(title)s${quality}.%(ext)s")
                         }
                     }
 

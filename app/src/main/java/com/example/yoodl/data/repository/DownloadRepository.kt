@@ -86,7 +86,7 @@ class DownloadRepository @Inject constructor(
                         fileSize = file.length(),
                         dateAdded = file.lastModified(),
                         type = type,
-                        thumbnail = thumbnail
+                        thumbnail = thumbnail,
                     )
                 )
             }

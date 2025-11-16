@@ -25,6 +25,7 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import javax.inject.Inject
 import kotlin.coroutines.cancellation.CancellationException
+import kotlin.text.get
 import kotlin.text.isNotEmpty
 
 @HiltViewModel
@@ -37,8 +38,7 @@ class HomePageVM @Inject constructor(
     )
     val sharedUrl = mutableStateOf("")
     var showDownloadSheet by mutableStateOf(false)
-    var bottomSheetCurrentVideoId by mutableStateOf("")
-    var bottomSheetCurrentVideoUrl by mutableStateOf("")
+    var bottomSheetCurrentVideo by mutableStateOf<YtData?>(null)
     var lastFetchedPlaylistUrl by mutableStateOf("")
 
     var ytVideosInfoEntries by mutableStateOf<List<YtData>>(emptyList())
@@ -79,7 +79,7 @@ class HomePageVM @Inject constructor(
                 downloadDir.mkdirs()
 
                 val quality =
-                    if (isAudio) "audio" else format?.height?.let { "${it}p" } ?: "unknown"
+                    if (isAudio) "" else format?.height?.let { "${it}p" } ?: "unknown"
 
                 val queueItem = DownloadQueue(
                     id = videoId,
@@ -90,7 +90,7 @@ class HomePageVM @Inject constructor(
                     status = DownloadStatus.PENDING,
                     progress = 0,
                     eta = 0,
-                    filePath = "${downloadDir.absolutePath}/$title [$quality]",
+                    filePath = "${downloadDir.absolutePath}/$title[$quality]",
                     thumbnail = thumbnail
                 )
 
@@ -341,7 +341,7 @@ class HomePageVM @Inject constructor(
     }
 
     // Get formats for a video (from cache)
-    fun getFormats(videoId: String): List<VideoFormat>? {
+    fun getVideoFormats(videoId: String): List<VideoFormat>? {
         return formatCache[videoId]?.formats
             ?.filter { format ->
                 format.vcodec != null &&
@@ -353,6 +353,18 @@ class HomePageVM @Inject constructor(
             ?.distinctBy { it.height }
             ?: emptyList()
     }
+    fun getAudioFormats(videoId: String): List<VideoFormat>? {
+        return formatCache[videoId]?.formats
+            ?.filter { format ->
+                format.acodec != null &&
+                        format.acodec != "none" &&
+                        format.vcodec == null || format.vcodec == "none"
+            }
+            ?.sortedByDescending { it.abr }
+            ?.distinctBy { it.abr }
+            ?: emptyList()
+    }
+
 
     // Check if formats are loading
     fun isLoadingFormats(videoId: String): Boolean {

@@ -1,0 +1,14 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="60dp"
+    android:height="60dp"
+    android:viewportWidth="60"
+    android:viewportHeight="60">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M50 12.5v35c0 4.14-3.36 7.5-7.5 7.5H40c-4.14 0-7.5-3.36-7.5-7.5v-35C32.5 8.36 35.86 5 40 5h2.5c4.14 0 7.5 3.36 7.5 7.5Z"/>
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M20 5c4.14 0 7.5 3.36 7.5 7.5v35c0 4.14-3.36 7.5-7.5 7.5h-2.5c-4.14 0-7.5-3.36-7.5-7.5v-35C10 8.36 13.36 5 17.5 5H20Z"/>
+</vector>
