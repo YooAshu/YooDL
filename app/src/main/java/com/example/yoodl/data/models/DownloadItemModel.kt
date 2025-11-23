@@ -11,7 +11,9 @@ data class DownloadItem(
     val dateAdded: Long,
     val type: String,
     val thumbnail: Bitmap?,
-//    val platform:String
+    val platform:String,
+    val url: String,
+    val status: DownloadStatus
 )
 
 
@@ -35,7 +37,10 @@ data class DownloadQueue(
     val eta: Long = 0,
     val createdAt: Long = System.currentTimeMillis(),
     val filePath: String,
-    var thumbnail: String?
+    var thumbnail: String?,
+    var platform: String = "youtube",
+    var formatId: String? ,
+    var formatExt: String?
 )
 
 enum class DownloadStatus {

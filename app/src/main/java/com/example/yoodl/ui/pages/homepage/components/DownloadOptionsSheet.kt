@@ -126,7 +126,7 @@ fun DownloadOptionsSheet(
                                 videoId = item.id,
                                 title = item.title,
                                 thumbnail = item.thumbnail,
-                                format = null,
+                                format = format,
                                 isAudio = true,
                                 onQueue = { queueItem ->
                                     onQueue(queueItem)

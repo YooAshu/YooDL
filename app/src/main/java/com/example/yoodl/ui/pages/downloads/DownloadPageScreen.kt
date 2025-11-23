@@ -1,5 +1,6 @@
 package com.example.yoodl.ui.pages.downloads
 
+import android.util.Log
 import android.widget.ProgressBar
 import android.widget.Toast
 import androidx.compose.foundation.Image
@@ -28,6 +29,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -36,6 +38,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ProgressIndicatorDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -53,6 +56,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.example.yoodl.R
 import com.example.yoodl.data.models.DownloadStatus
@@ -68,6 +72,7 @@ fun DownloadPageScreen(
     viewModel: DownloadPageVM = hiltViewModel()
 ) {
     val context = LocalContext.current
+    val downloadedItems by viewModel.downloadedItems.collectAsState()
     Box(
         Modifier.fillMaxSize()
     ) {
@@ -104,7 +109,9 @@ fun DownloadPageScreen(
                                     contentColor = Color.White
                                 ),
                                 contentPadding = PaddingValues(4.dp),
-                                onClick = {},
+                                onClick = {
+                                    viewModel.logAllDownloads()
+                                },
                             ) {
                                 Text(
                                     section,
@@ -210,6 +217,7 @@ fun DownloadPageScreen(
                                             else -> R.drawable.close_svgrepo_com
                                         }
                                 ),
+                                tint = Color.White,
                                 contentDescription = "Close",
                                 modifier = Modifier.size(24.dp)
                             )
@@ -218,11 +226,12 @@ fun DownloadPageScreen(
                 }
             }
 
-            if (viewModel.queuedDownloads.size > 1) {
+            if (viewModel.queuedDownloads.size>1) {
                 item {
                     Text(
-                        "Queued (${viewModel.queuedDownloads.size - 1})",
-                        fontWeight = FontWeight.Bold
+                        "Queued (${viewModel.queuedDownloads.size -1 })",
+                        fontWeight = FontWeight.Bold,
+                        lineHeight = 36.sp
                     )
                 }
                 items(viewModel.queuedDownloads) { queued ->
@@ -251,6 +260,7 @@ fun DownloadPageScreen(
                             Column(
                                 verticalArrangement = Arrangement.Top,
                                 modifier = Modifier
+                                    .weight(.7f)
                                     .wrapContentHeight()
                                     .padding(start = 5.dp)
                             ) {
@@ -267,16 +277,104 @@ fun DownloadPageScreen(
                                 )
 
                             }
+                            IconButton(
+                                modifier = Modifier.weight(.1f),
+                                onClick = {
+                                    if (queued.status == DownloadStatus.PAUSED){
+                                        //update that queue with status pending
+                                        viewModel.updateQueuedDownloadStatus(queued.id, DownloadStatus.PENDING)
+                                        viewModel.processDownloadQueue()
+                                    }
+                                }
+                            ) {
+                                Icon(
+                                    painter = painterResource(
+                                        id =
+                                            when (queued.status) {
+                                                DownloadStatus.DOWNLOADING -> R.drawable.pause
+                                                DownloadStatus.PAUSED -> R.drawable.play
+                                                DownloadStatus.PENDING -> R.drawable.waiting
+                                                else -> R.drawable.close_svgrepo_com
+                                            }
+                                    ),
+                                    tint = Color.White,
+                                    contentDescription = "Close",
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
 
                         }
                     }
                 }
             }
 
-            item {
-                Text("Downloaded", fontWeight = FontWeight.Bold)
+            if (viewModel.failedDownloads.isNotEmpty()) {
+                item {
+                    Text("Failed", fontWeight = FontWeight.Bold, lineHeight = 36.sp, fontSize = 20.sp)
+                }
+                items(viewModel.failedDownloads) { failed ->
+                    Row(modifier = Modifier.padding(vertical = 8.dp)) {
+                        if (failed.thumbnail != null && failed.thumbnail!!.isNotEmpty()) {
+                            AsyncImage(
+                                model = failed.thumbnail,
+                                contentDescription = "Video Thumbnail",
+                                modifier = Modifier
+                                    .fillMaxWidth(0.2f)
+                                    .aspectRatio(1f)
+                                    .clip(RoundedCornerShape(8.dp)),
+                                contentScale = ContentScale.Crop
+                            )
+                        } else {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth(0.2f)
+                                    .aspectRatio(1f)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(Color(0x0FC1C1C1))
+                            )
+                        }
+                        Column(
+                            verticalArrangement = Arrangement.Top,
+                            modifier = Modifier
+                                .weight(.7f)
+                                .wrapContentHeight()
+                                .padding(start = 5.dp)
+                        ) {
+                            Text(
+                                failed.title,
+                                maxLines = 1,
+                                modifier = Modifier,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                if (failed.isAudio) "audio" else "video",
+                                fontSize = 12.sp,
+                                color = Color.White.copy(.5f)
+                            )
+
+                        }
+                        IconButton(
+                            modifier = Modifier.weight(.1f),
+                            onClick = {
+                                viewModel.moveFromFailedToQueued(failed.id)
+                                if(viewModel.currentDownload==null) viewModel.processDownloadQueue()
+                            }
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                tint = Color.White,
+                                contentDescription = "Close",
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                    }
+                }
             }
-            items(viewModel.downloadedItems) {
+
+            item {
+                Text("Downloaded", fontWeight = FontWeight.Bold, lineHeight = 36.sp, fontSize = 20.sp)
+            }
+            items(downloadedItems) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -290,8 +388,7 @@ fun DownloadPageScreen(
                             }
                         }
                 ) {
-                    var imageBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
-                    imageBitmap = it.thumbnail?.asImageBitmap()
+                    val imageBitmap = it.thumbnail?.asImageBitmap()
                     if (imageBitmap != null) {
                         Image(
                             bitmap = imageBitmap!!,
@@ -335,4 +432,5 @@ fun DownloadPageScreen(
             }
         }
     }
+
 }

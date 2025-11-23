@@ -5,6 +5,7 @@ plugins {
 
     id("com.google.dagger.hilt.android")
     kotlin("kapt")
+    id("com.google.devtools.ksp") version "2.0.21-1.0.27" // ← Add KSP plugin
 }
 
 android {
@@ -82,5 +83,12 @@ dependencies {
 //    implementation("net.jthink:jaudiotagger:3.0.1")
     implementation("com.squareup.retrofit2:retrofit:2.9.0")
     implementation("com.squareup.retrofit2:converter-gson:2.9.0")
+    //room
+    val roomVersion = "2.6.1"
+    implementation("androidx.room:room-runtime:$roomVersion")
+    implementation("androidx.room:room-ktx:$roomVersion")
+    ksp("androidx.room:room-compiler:$roomVersion") // ← Uses KSP, not kapt
+    // Optional: Room testing
+    testImplementation("androidx.room:room-testing:${roomVersion}")
 
 }

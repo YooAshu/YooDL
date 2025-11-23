@@ -54,3 +54,10 @@ data class VideoItem(
 data class VideoContentDetails(
     val duration: String?
 )
+
+sealed class SocialMediaPlatform {
+    object YouTube : SocialMediaPlatform()
+    object Instagram : SocialMediaPlatform()
+    object Facebook : SocialMediaPlatform()
+    object Unknown : SocialMediaPlatform()
+}

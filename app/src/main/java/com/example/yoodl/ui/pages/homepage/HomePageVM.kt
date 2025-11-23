@@ -13,7 +13,6 @@ import com.example.yoodl.data.api.RetrofitInstance
 import com.example.yoodl.data.models.DownloadQueue
 import com.example.yoodl.data.models.DownloadStatus
 import com.example.yoodl.data.models.YtData
-import com.example.yoodl.data.repository.DownloadRepository
 import com.yausername.youtubedl_android.YoutubeDL
 import com.yausername.youtubedl_android.mapper.VideoFormat
 import com.yausername.youtubedl_android.mapper.VideoInfo
@@ -30,7 +29,6 @@ import kotlin.text.isNotEmpty
 
 @HiltViewModel
 class HomePageVM @Inject constructor(
-    val repo: DownloadRepository
 ) : ViewModel() {
     private val baseDownloadDir = File(
         Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
@@ -79,10 +77,11 @@ class HomePageVM @Inject constructor(
                 downloadDir.mkdirs()
 
                 val quality =
-                    if (isAudio) "" else format?.height?.let { "${it}p" } ?: "unknown"
+                    if (isAudio) "${format?.abr}kbps" else format?.height?.let { "[${it}p]" } ?: "unknown"
+                val extension = if (isAudio) "mp3" else format?.ext ?: "mp3"
 
                 val queueItem = DownloadQueue(
-                    id = videoId,
+                    id = "${videoId}$quality",
                     title = title,
                     url = url,
                     format = format,
@@ -90,8 +89,11 @@ class HomePageVM @Inject constructor(
                     status = DownloadStatus.PENDING,
                     progress = 0,
                     eta = 0,
-                    filePath = "${downloadDir.absolutePath}/$title[$quality]",
-                    thumbnail = thumbnail
+                    filePath = "${downloadDir.absolutePath}/$title-${videoId}$quality.${extension}",
+                    thumbnail = thumbnail,
+                    formatId = format?.formatId,
+                    platform = "youtube",
+                    formatExt = if (isAudio) "mp3" else format?.ext?:"mp4"
                 )
 
                 onQueue(queueItem)
@@ -172,8 +174,7 @@ class HomePageVM @Inject constructor(
                     ytVideosInfoEntries = listOfNotNull(entry)
                     lastFetchedPlaylistUrl = inputUrl
                     loadingYTVideosInfo = false
-                }
-                else{
+                } else {
                     //handle invalid yt url
                 }
             }
@@ -191,7 +192,7 @@ class HomePageVM @Inject constructor(
                 playListName = playlistResponse.items.firstOrNull()?.snippet?.title ?: "Unknown"
 
                 // Fetch all video IDs - title - thumbnail - title
-                val results =  mutableMapOf<String, YtData?>()
+                val results = mutableMapOf<String, YtData?>()
                 val videoIds = mutableListOf<String>()
                 var pageToken = ""
                 do {
@@ -204,7 +205,7 @@ class HomePageVM @Inject constructor(
                     )
                     itemsResponse.items.forEach { item ->
                         val videoId = item.contentDetails?.videoId ?: return@forEach
-                        results[videoId]=
+                        results[videoId] =
                             YtData(
                                 id = videoId,
                                 title = item.snippet?.title ?: "Unknown",
@@ -267,7 +268,6 @@ class HomePageVM @Inject constructor(
             }
         }
     }
-
 
 
     fun extractVideoIdFromUrl(url: String): String? {
@@ -353,6 +353,7 @@ class HomePageVM @Inject constructor(
             ?.distinctBy { it.height }
             ?: emptyList()
     }
+
     fun getAudioFormats(videoId: String): List<VideoFormat>? {
         return formatCache[videoId]?.formats
             ?.filter { format ->
