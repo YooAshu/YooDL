@@ -165,6 +165,7 @@ fun HomePageScreen(
 
             item {
                 if (viewModel.loadingYTVideosInfo) {
+                    Log.d("HomePageScreen", "Loading... ${viewModel.loadingYTVideosInfo}")
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()

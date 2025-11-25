@@ -144,6 +144,12 @@ class DownloadRepositoryV2 @Inject constructor(
             entities.map { it.toDownloadItem(loadThumbnail(it.filePath, it.id)) }
         }
     }
+    fun getDownloadsByType(type: String): Flow<List<DownloadItem>> {
+        return downloadDao.getDownloadsByType(type).map { entities ->
+            entities.map { it.toDownloadItem(loadThumbnail(it.filePath, it.id)) }
+        }
+    }
+
 
     fun getDownloadsByPlatformAndStatus(
         platform: String,
@@ -154,12 +160,12 @@ class DownloadRepositoryV2 @Inject constructor(
         }
     }
 
-    fun getDownloadsByType(type: String): Flow<List<DownloadItem>> {
-        return downloadDao.getAllDownloads().map { entities ->
-            entities.filter { it.type == type }
-                .map { it.toDownloadItem(loadThumbnail(it.filePath, it.id)) }
-        }
-    }
+//    fun getDownloadsByType(type: String): Flow<List<DownloadItem>> {
+//        return downloadDao.getAllDownloads().map { entities ->
+//            entities.filter { it.type == type }
+//                .map { it.toDownloadItem(loadThumbnail(it.filePath, it.id)) }
+//        }
+//    }
 
     suspend fun getQueueDownloadById(downloadId: String): DownloadQueue? {
         return withContext(Dispatchers.IO) {

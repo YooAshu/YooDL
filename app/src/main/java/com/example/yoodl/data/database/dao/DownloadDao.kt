@@ -104,6 +104,9 @@ interface DownloadDao {
     @Query("SELECT * FROM downloads WHERE platform = :platform ORDER BY created_at DESC")
     fun getDownloadsByPlatform(platform: String): Flow<List<DownloadItemEntity>>
 
+    @Query("SELECT * FROM downloads WHERE type = :type ORDER BY created_at DESC")
+    fun getDownloadsByType(type: String): Flow<List<DownloadItemEntity>>
+
     @Query("SELECT * FROM downloads WHERE platform = :platform AND status = :status ORDER BY created_at DESC")
     fun getDownloadsByPlatformAndStatus(platform: String, status: DownloadStatus): Flow<List<DownloadItemEntity>>
 

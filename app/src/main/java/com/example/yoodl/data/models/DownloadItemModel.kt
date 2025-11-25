@@ -59,5 +59,6 @@ data class YtData(
     val thumbnail: String,
     var duration: String = "",
     val channelName: String = "",
+    val platform: String = "youtube"
 )
 

@@ -12,6 +12,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.yoodl.data.api.RetrofitInstance
 import com.example.yoodl.data.models.DownloadQueue
 import com.example.yoodl.data.models.DownloadStatus
+import com.example.yoodl.data.models.SocialMediaPlatform
 import com.example.yoodl.data.models.YtData
 import com.yausername.youtubedl_android.YoutubeDL
 import com.yausername.youtubedl_android.mapper.VideoFormat
@@ -60,13 +61,14 @@ class HomePageVM @Inject constructor(
         thumbnail: String = "",
         format: VideoFormat?,
         isAudio: Boolean,
+        platform: String = "youtube",
         onQueue: (DownloadQueue) -> Unit
     ) {
         viewModelScope.launch {
             try {
                 val baseDownloadDir = File(
                     Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
-                    "YooDL/youtube"
+                    "YooDL/${platform}"
                 )
 
                 val downloadDir = if (isAudio) {
@@ -77,7 +79,8 @@ class HomePageVM @Inject constructor(
                 downloadDir.mkdirs()
 
                 val quality =
-                    if (isAudio) "${format?.abr}kbps" else format?.height?.let { "[${it}p]" } ?: "unknown"
+                    if (isAudio) "${format?.abr}kbps" else format?.height?.let { "[${it}p]" }
+                        ?: "unknown"
                 val extension = if (isAudio) "mp3" else format?.ext ?: "mp3"
 
                 val queueItem = DownloadQueue(
@@ -92,8 +95,8 @@ class HomePageVM @Inject constructor(
                     filePath = "${downloadDir.absolutePath}/$title-${videoId}$quality.${extension}",
                     thumbnail = thumbnail,
                     formatId = format?.formatId,
-                    platform = "youtube",
-                    formatExt = if (isAudio) "mp3" else format?.ext?:"mp4"
+                    platform = platform,
+                    formatExt = if (isAudio) "mp3" else format?.ext ?: "mp4"
                 )
 
                 onQueue(queueItem)
@@ -155,31 +158,104 @@ class HomePageVM @Inject constructor(
                     onError(Exception("No playlist entries found"))
                 }
             } else {
-                if (isValidYouTubeVideoUrl(inputUrl)) {
-                    val videoId = extractVideoIdFromUrl(inputUrl)
-                    if (videoId == null) {
-                        onError(Exception("Invalid video URL"))
-                        loadingYTVideosInfo = true
-                        return@launch
+                when (identifySocialMediaPlatform(inputUrl)) {
+                    SocialMediaPlatform.YouTube -> {
+                        if (isValidYouTubeVideoUrl(inputUrl)) {
+                            val videoId = extractVideoIdFromUrl(inputUrl)
+                            if (videoId == null) {
+                                onError(Exception("Invalid video URL"))
+                                loadingYTVideosInfo = false
+                                return@launch
+                            }
+                            val entry = try {
+                                fetchSingleVideoViaAPI(videoId)
+                            } catch (
+                                e: Exception
+                            ) {
+                                Log.e("HandleURL", "Error: ${e.message}", e)
+                                onError(e)
+                                null
+                            }
+                            ytVideosInfoEntries = listOfNotNull(entry)
+                            lastFetchedPlaylistUrl = inputUrl
+                            loadingYTVideosInfo = false
+                        } else {
+                            //handle invalid yt url
+                        }
                     }
-                    val entry = try {
-                        fetchSingleVideoViaAPI(videoId)
-                    } catch (
-                        e: Exception
-                    ) {
-                        Log.e("HandleURL", "Error: ${e.message}", e)
-                        onError(e)
-                        null
+                    SocialMediaPlatform.Instagram -> {
+                        val videoId = extractInstagramId(inputUrl)
+                        handleOtherLink(inputUrl,videoId,"instagram", onError)
                     }
-                    ytVideosInfoEntries = listOfNotNull(entry)
-                    lastFetchedPlaylistUrl = inputUrl
-                    loadingYTVideosInfo = false
-                } else {
-                    //handle invalid yt url
+                    SocialMediaPlatform.Facebook -> {
+                        val videoId = extractFacebookId(inputUrl)
+                        handleOtherLink(inputUrl,videoId,"facebook", onError)
+                    }
+                    SocialMediaPlatform.Unknown -> {
+                        val videoId = "unknown_${System.currentTimeMillis()}"
+                        handleOtherLink(inputUrl,videoId,"other", onError)
+                    }
                 }
+
             }
         }
     }
+
+    fun handleOtherLink(inputUrl: String,videoId: String,platform: String,onError: (Exception) -> Unit) {
+
+        if (videoId == "") {
+            onError(Exception("Invalid video URL"))
+            loadingYTVideosInfo = false
+            return
+        }
+        // Start fetching
+        loadingFormats[videoId] = true
+        fetchJobs[videoId] = viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val videoInfo = YoutubeDL.getInstance().getInfo(inputUrl)
+
+                withContext(Dispatchers.Main) {
+                    formatCache[videoId] = videoInfo
+                    loadingFormats[videoId] = false
+                    Log.d("Formats", "✅ Formats loaded for $videoId")
+                    val entryItem = formatCache[videoId]
+                    Log.d("Formats", "d ${entryItem?.duration}")
+                    if (entryItem!=null){
+                        ytVideosInfoEntries = listOfNotNull(
+                            YtData(
+                                id = videoId,
+                                title = entryItem.title ?: (platform + videoId),
+                                url = inputUrl,
+                                thumbnail = entryItem.thumbnail?:"",
+                                platform = platform,
+                                duration = getFormattedDate(entryItem.duration),
+                                channelName = entryItem.uploader?: platform
+                            )
+                        )
+                    }
+                    else{
+                        onError(Exception("Invalid video URL"))
+                    }
+                }
+            }
+            catch (e: Exception) {
+                if (e !is CancellationException) {
+                    withContext(Dispatchers.Main) {
+                        loadingFormats[videoId] = false
+                        Log.e("Formats", "❌ Error loading formats for $videoId: ${e.message}")
+                    }
+                }
+            }
+            finally {
+                lastFetchedPlaylistUrl = inputUrl
+                loadingYTVideosInfo = false
+            }
+
+        }
+
+
+    }
+
 
     private suspend fun fetchPlaylistEntriesViaAPI(playlistId: String): List<YtData> {
         return withContext(Dispatchers.IO) {
@@ -289,6 +365,35 @@ class HomePageVM @Inject constructor(
         }
     }
 
+
+    private fun extractInstagramId(url: String): String {
+        return try {
+            val lower = url.lowercase()
+            when {
+                lower.contains("/p/") -> url.split("/p/")[1].split("/")[0]
+                lower.contains("/reel/") -> url.split("/reel/")[1].split("/")[0]
+                lower.contains("/tv/") -> url.split("/tv/")[1].split("/")[0]
+                else -> ""
+            }
+        } catch (e: Exception) {
+            ""
+        }
+    }
+
+    private fun extractFacebookId(url: String): String {
+        return try {
+            val lower = url.lowercase()
+            when {
+                lower.contains("watch?v=") -> url.split("watch?v=")[1].split("&")[0]
+                lower.contains("/videos/") -> url.split("/videos/")[1].split("/")[0]
+                lower.contains("/share/r") ->url.split("/share/r/")[1].split("/")[0]
+                else -> ""
+            }
+        } catch (e: Exception) {
+            ""
+        }
+    }
+
     fun isValidYouTubeVideoUrl(url: String): Boolean {
         val videoId = extractVideoIdFromUrl(url)
         return videoId != null && videoId.length == 11 && videoId.matches(Regex("[a-zA-Z0-9_-]+"))
@@ -301,6 +406,16 @@ class HomePageVM @Inject constructor(
             listParam
         } catch (e: Exception) {
             ""
+        }
+    }
+
+    fun identifySocialMediaPlatform(url: String): SocialMediaPlatform {
+        val lower = url.lowercase()
+        return when {
+            lower.contains("youtube.com") || lower.contains("youtu.be") -> SocialMediaPlatform.YouTube
+            lower.contains("instagram.com") || lower.contains("instagr.am") -> SocialMediaPlatform.Instagram
+            lower.contains("facebook.com") || lower.contains("fb.watch") || lower.contains("fb.com") -> SocialMediaPlatform.Facebook
+            else -> SocialMediaPlatform.Unknown
         }
     }
 
@@ -389,6 +504,20 @@ class HomePageVM @Inject constructor(
     override fun onCleared() {
         super.onCleared()
         cancelAllFormatFetches()
+    }
+
+    // kotlin
+    fun getFormattedDate(timestamp: Int): String {
+        val secondsTotal = if (timestamp < 0) 0 else timestamp
+        val hours = secondsTotal / 3600
+        val minutes = (secondsTotal % 3600) / 60
+        val seconds = secondsTotal % 60
+
+        return if (hours > 0) {
+            String.format("%d:%02d:%02d", hours, minutes, seconds)
+        } else {
+            String.format("%02d:%02d", minutes, seconds)
+        }
     }
 
 

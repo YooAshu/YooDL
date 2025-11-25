@@ -128,6 +128,7 @@ fun DownloadOptionsSheet(
                                 thumbnail = item.thumbnail,
                                 format = format,
                                 isAudio = true,
+                                platform = item.platform,
                                 onQueue = { queueItem ->
                                     onQueue(queueItem)
                                     Toast.makeText(
@@ -175,6 +176,7 @@ fun DownloadOptionsSheet(
                                 thumbnail = item.thumbnail,
                                 format = format,
                                 isAudio = false,
+                                platform = item.platform,
                                 onQueue = { queueItem ->
                                     onQueue(queueItem)
                                     Toast.makeText(

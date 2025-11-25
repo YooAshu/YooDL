@@ -19,6 +19,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.forEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -32,10 +33,6 @@ class DownloadPageVM @Inject constructor(
     private val dbRepo: DownloadRepositoryV2
 ) : ViewModel() {
 
-    private val baseDownloadDir = File(
-        Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
-        "YooDL/youtube"
-    )
 
     val downloadedItems: StateFlow<List<DownloadItem>> =
         dbRepo.getDownloadsByStatus(DownloadStatus.COMPLETED)
@@ -54,6 +51,13 @@ class DownloadPageVM @Inject constructor(
 
     var failedDownloads by mutableStateOf<List<DownloadQueue>>(emptyList())
         private set
+
+    var downloadedItemByType by mutableStateOf<List<DownloadItem>>(emptyList())
+        private set
+
+    var showingSpeceficType by mutableStateOf(false)
+    var nameOfShowingType by mutableStateOf("")
+
 
     var downloadProgress by mutableStateOf(0F)
         private set
@@ -134,6 +138,11 @@ class DownloadPageVM @Inject constructor(
                 // ✅ Insert into database at start
                 dbRepo.updateDownloadStatus(currentItem.id, DownloadStatus.DOWNLOADING)
 
+                val baseDownloadDir = File(
+                    Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
+                    "YooDL/${currentItem.platform}"
+                )
+
                 val downloadDir = if (currentItem.isAudio) {
                     File(baseDownloadDir, "audio")
                 } else {
@@ -198,19 +207,23 @@ class DownloadPageVM @Inject constructor(
                         }
                     }
 
-                    cleanupJsonFile(downloadDir)
-                    deleteDownloadedThumbnails(downloadDir)
-                    val outputFile =
+                    withContext(Dispatchers.IO) {
+                        cleanupJsonFile(downloadDir)
+                        deleteDownloadedThumbnails(downloadDir)
+                    }
+                    val outputFile = withContext(Dispatchers.IO) {
                         findLatestFile(downloadDir, currentItem.formatExt!!)
-
+                    }
                     // ✅ Cache thumbnail and mark as completed
                     if (outputFile != null) {
-                        val thumbnail = if (currentItem.isAudio) {
-                            dbRepo.getEmbeddedThumbnail(outputFile)
-                        } else {
-                            dbRepo.getVideoFrame(outputFile)
+                        withContext(Dispatchers.IO) {
+                            val thumbnail = if (currentItem.isAudio) {
+                                dbRepo.getEmbeddedThumbnail(outputFile)
+                            } else {
+                                dbRepo.getVideoFrame(outputFile)
+                            }
+                            dbRepo.cacheThumbnail(outputFile, thumbnail, currentItem.id)
                         }
-                        dbRepo.cacheThumbnail(outputFile, thumbnail, currentItem.id)
                     }
                     //update filepath
                     updateCurrentDownload(
@@ -219,10 +232,13 @@ class DownloadPageVM @Inject constructor(
                         )
                     )
                     // ✅ Mark as completed in database
-                    dbRepo.markDownloadCompleted(
-                        currentItem.id,
-                        outputFile?.absolutePath ?: currentItem.filePath
-                    )
+                    withContext(Dispatchers.IO) {
+                        dbRepo.markDownloadCompleted(
+                            currentItem.id,
+                            outputFile?.absolutePath ?: currentItem.filePath
+                        )
+                    }
+
 
                     removeFromQueue(currentItem.id)
 
@@ -284,6 +300,11 @@ class DownloadPageVM @Inject constructor(
                 )
                 stalledDownloads.forEach { stalled ->
                     Log.d("Download", "Cleaning up stalled: ${stalled.title}")
+                    val baseDownloadDir = File(
+                        Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
+                        "YooDL/${stalled.platform}"
+                    )
+
 
                     // Get the correct download directory
                     val downloadDir = if (stalled.isAudio) {
@@ -422,9 +443,30 @@ class DownloadPageVM @Inject constructor(
             val allDownloads = dbRepo.getAllDownloads()
             allDownloads.collect { it ->
                 it.forEach { item ->
-                    Log.d("Download", "Title: ${item.title} - Status: ${item.status}")
+                    Log.d("Download", "Title: ${item.title} - Status: ${item.status} -platform ${item.platform} type: ${item.type}")
                 }
             }
         }
     }
+
+    fun getDownloadedItemByType(type: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            nameOfShowingType = type
+            when(type) {
+                "audio", "video" -> {
+                    showingSpeceficType = true
+                    downloadedItemByType = dbRepo.getDownloadsByType(type).first()
+                }
+                "instagram", "facebook", "youtube" -> {
+                    showingSpeceficType = true
+                    downloadedItemByType = dbRepo.getDownloadsByPlatform(type).first()
+                }
+                "all" -> {
+                    showingSpeceficType = false
+                    downloadedItemByType = emptyList()
+                }
+            }
+        }
+    }
+
 }
