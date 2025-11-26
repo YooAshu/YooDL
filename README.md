@@ -8,12 +8,11 @@ A powerful Android application built with **Kotlin** and **Jetpack Compose** tha
 
 ## 🌟 Features at a Glance
 
-[![GitHub Downloads](https://img.shields.io/github/downloads/YooAshu/YooDL/total?style=flat-square&logo=github)](https://github.com/YooAshu/YooDL/releases)
 [![GitHub Repo Stars](https://img.shields.io/github/stars/YooAshu/YooDL?style=flat-square&logo=github)](https://github.com/YooAshu/YooDL)
 
 ## 📲 Quick Download
 
-[⬇️ **DOWNLOAD LATEST APK**](https://github.com/YooAshu/YooDL/releases/latest) 
+[⬇️ **DOWNLOAD LATEST APK**](https://github.com/YooAshu/YooDL/releases/download/1.0/YooDL.1.apk) 
 - **v1.0.0** | Latest Release | Direct from GitHub
 
 ---
@@ -334,5 +333,5 @@ If YooDL helped you, please consider:
 ---
 
 **Made with ❤️ using Kotlin & Jetpack Compose**
+<img width="1937" height="1084" alt="image" src="https://github.com/user-attachments/assets/3bf34702-5230-48c8-a19c-f8b5d91fbc25" />
 
-![YooDL Banner](https://via.placeholder.com/1200x400/1f6feb/ffffff?text=YooDL+-+Universal+Media+Downloader)
