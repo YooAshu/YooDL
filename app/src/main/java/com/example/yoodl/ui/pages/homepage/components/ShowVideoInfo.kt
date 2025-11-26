@@ -1,6 +1,5 @@
 package com.example.yoodl.ui.pages.homepage.components
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -11,8 +10,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
-import androidx.compose.material3.CardColors
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -57,16 +56,15 @@ fun ShowVideoInfo(item: YtData, onDownloadClick: () -> Unit) {
             Text(
                 text = item.title,
                 style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold, color = Color.White
             )
 
             Spacer(modifier = Modifier.height(4.dp))
 
             // Uploader
             Text(
-                text = "By: ${item.channelName ?: "Unknown"}",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                text = "By: ${item.channelName}",
+                style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(.7f)
             )
 
             Spacer(modifier = Modifier.height(4.dp))
@@ -75,7 +73,8 @@ fun ShowVideoInfo(item: YtData, onDownloadClick: () -> Unit) {
 
             Text(
                 text = "Duration: ${convertDuration(item.duration)}",
-                style = MaterialTheme.typography.bodySmall
+                style = MaterialTheme.typography.bodySmall,
+                color = Color.White.copy(.7f)
             )
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -85,14 +84,19 @@ fun ShowVideoInfo(item: YtData, onDownloadClick: () -> Unit) {
                 onClick = {
                     onDownloadClick()
                 },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color.White,
+                    contentColor = Color.Black
+                )
             ) {
                 Icon(
                     imageVector = Icons.Default.KeyboardArrowDown,
-                    contentDescription = null
+                    contentDescription = null,
+                    tint = Color.Black
                 )
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Download")
+                Text("Download", color = Color.Black)
             }
         }
     }
@@ -113,7 +117,7 @@ fun convertDuration(isoDuration: String): String {
             minutes > 0 -> String.format("%d:%02d", minutes, seconds)
             else -> String.format("0:%02d", seconds)
         }
-    } catch (e: Exception) {
+    } catch (_: Exception) {
         "0:00"
     }
 }

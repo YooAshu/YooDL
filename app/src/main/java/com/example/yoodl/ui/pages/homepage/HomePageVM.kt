@@ -9,6 +9,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.yoodl.BuildConfig
 import com.example.yoodl.data.api.RetrofitInstance
 import com.example.yoodl.data.models.DownloadQueue
 import com.example.yoodl.data.models.DownloadStatus
@@ -25,16 +26,11 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import javax.inject.Inject
 import kotlin.coroutines.cancellation.CancellationException
-import kotlin.text.get
-import kotlin.text.isNotEmpty
 
 @HiltViewModel
 class HomePageVM @Inject constructor(
 ) : ViewModel() {
-    private val baseDownloadDir = File(
-        Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
-        "YooDL/youtube"
-    )
+
     val sharedUrl = mutableStateOf("")
     var showDownloadSheet by mutableStateOf(false)
     var bottomSheetCurrentVideo by mutableStateOf<YtData?>(null)
@@ -119,7 +115,6 @@ class HomePageVM @Inject constructor(
     fun handleYTLink(
         inputUrl: String,
         onError: (Exception) -> Unit = {},
-        onSuccessPerVideo: (String) -> Unit = {}
     ) {
         if (inputUrl.isBlank()) return
         // Skip if same URL was already successfully fetched
@@ -217,9 +212,9 @@ class HomePageVM @Inject constructor(
                 withContext(Dispatchers.Main) {
                     formatCache[videoId] = videoInfo
                     loadingFormats[videoId] = false
-                    Log.d("Formats", "✅ Formats loaded for $videoId")
+//                    Log.d("Formats", "✅ Formats loaded for $videoId")
                     val entryItem = formatCache[videoId]
-                    Log.d("Formats", "d ${entryItem?.duration}")
+//                    Log.d("Formats", "d ${entryItem?.duration}")
                     if (entryItem!=null){
                         ytVideosInfoEntries = listOfNotNull(
                             YtData(
@@ -243,6 +238,7 @@ class HomePageVM @Inject constructor(
                     withContext(Dispatchers.Main) {
                         loadingFormats[videoId] = false
                         Log.e("Formats", "❌ Error loading formats for $videoId: ${e.message}")
+                        onError(e)
                     }
                 }
             }
@@ -260,7 +256,7 @@ class HomePageVM @Inject constructor(
     private suspend fun fetchPlaylistEntriesViaAPI(playlistId: String): List<YtData> {
         return withContext(Dispatchers.IO) {
             try {
-                val apiKey = "AIzaSyDKmZ1uGGBCZcv04dQ9F-aiLKvfQEfAyOw"
+                val apiKey = BuildConfig.YOUTUBE_API_KEY
                 val service = RetrofitInstance.getYouTubeApiService()
 
                 // Fetch playlist name
@@ -306,7 +302,7 @@ class HomePageVM @Inject constructor(
                     }
                 }
 
-                Log.d("PlaylistAPI", "Fetched ${results.size} videos from API")
+//                Log.d("PlaylistAPI", "Fetched ${results.size} videos from API")
                 results.values.filterNotNull().toList()
             } catch (e: Exception) {
                 Log.e("PlaylistAPI", "Error: ${e.message}", e)
@@ -318,7 +314,7 @@ class HomePageVM @Inject constructor(
     private suspend fun fetchSingleVideoViaAPI(videoId: String): YtData? {
         return withContext(Dispatchers.IO) {
             try {
-                val apiKey = "AIzaSyDKmZ1uGGBCZcv04dQ9F-aiLKvfQEfAyOw"
+                val apiKey = BuildConfig.YOUTUBE_API_KEY
                 val service = RetrofitInstance.getYouTubeApiService()
 
                 val videosResponse = service.getSingleVideoInfo(
@@ -360,7 +356,7 @@ class HomePageVM @Inject constructor(
 
                 else -> null
             }
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             null
         }
     }
@@ -375,7 +371,7 @@ class HomePageVM @Inject constructor(
                 lower.contains("/tv/") -> url.split("/tv/")[1].split("/")[0]
                 else -> ""
             }
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             ""
         }
     }
@@ -389,7 +385,7 @@ class HomePageVM @Inject constructor(
                 lower.contains("/share/r") ->url.split("/share/r/")[1].split("/")[0]
                 else -> ""
             }
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             ""
         }
     }
@@ -404,7 +400,7 @@ class HomePageVM @Inject constructor(
         return try {
             val listParam = url.split("list=")[1].split("&")[0]
             listParam
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             ""
         }
     }
@@ -422,13 +418,13 @@ class HomePageVM @Inject constructor(
     fun fetchFormatsForVideo(videoId: String, videoUrl: String) {
         // If already cached, return immediately
         if (formatCache.containsKey(videoId)) {
-            Log.d("Formats", "Using cached formats for $videoId")
+//            Log.d("Formats", "Using cached formats for $videoId")
             return
         }
 
         // If already loading, don't start again
         if (loadingFormats[videoId] == true) {
-            Log.d("Formats", "Already loading formats for $videoId")
+//            Log.d("Formats", "Already loading formats for $videoId")
             return
         }
 
@@ -442,7 +438,7 @@ class HomePageVM @Inject constructor(
                 withContext(Dispatchers.Main) {
                     formatCache[videoId] = videoInfo
                     loadingFormats[videoId] = false
-                    Log.d("Formats", "✅ Formats loaded for $videoId")
+//                    Log.d("Formats", "✅ Formats loaded for $videoId")
                 }
             } catch (e: Exception) {
                 if (e !is CancellationException) {
@@ -456,20 +452,18 @@ class HomePageVM @Inject constructor(
     }
 
     // Get formats for a video (from cache)
-    fun getVideoFormats(videoId: String): List<VideoFormat>? {
+    fun getVideoFormats(videoId: String): List<VideoFormat> {
         return formatCache[videoId]?.formats
             ?.filter { format ->
                 format.vcodec != null &&
-                        format.vcodec != "none" &&
-                        format.height != null &&
-                        format.height > 0
+                        format.vcodec != "none" && format.height > 0
             }
             ?.sortedByDescending { it.height }
             ?.distinctBy { it.height }
             ?: emptyList()
     }
 
-    fun getAudioFormats(videoId: String): List<VideoFormat>? {
+    fun getAudioFormats(videoId: String): List<VideoFormat> {
         return formatCache[videoId]?.formats
             ?.filter { format ->
                 format.acodec != null &&
@@ -480,6 +474,8 @@ class HomePageVM @Inject constructor(
             ?.distinctBy { it.abr }
             ?: emptyList()
     }
+
+
 
 
     // Check if formats are loading
@@ -495,11 +491,11 @@ class HomePageVM @Inject constructor(
     }
 
     // Cancel specific video format fetch
-    fun cancelFormatFetch(videoId: String) {
-        fetchJobs[videoId]?.cancel()
-        fetchJobs.remove(videoId)
-        loadingFormats[videoId] = false
-    }
+//    fun cancelFormatFetch(videoId: String) {
+//        fetchJobs[videoId]?.cancel()
+//        fetchJobs.remove(videoId)
+//        loadingFormats[videoId] = false
+//    }
 
     override fun onCleared() {
         super.onCleared()

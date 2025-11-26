@@ -11,7 +11,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
@@ -67,14 +66,15 @@ fun BottomNav(navController: NavHostController, modifier: Modifier = Modifier) {
                     selectedIconColor = Color.Black,
                     unselectedIconColor = Color.White,
                     selectedTextColor = Color.White,
-                    indicatorColor = Color.Transparent
+                    indicatorColor = Color.Transparent,
+
                 ),
                 modifier = Modifier
                     .padding(horizontal = 5.dp)
                     .size(50.dp)
                     .clip(RoundedCornerShape(50))
                     .background(
-                        if (currentRoute == navItem.route) MaterialTheme.colorScheme.primary
+                        if (currentRoute == navItem.route) Color.White
                         else Color.Transparent
                     )
 

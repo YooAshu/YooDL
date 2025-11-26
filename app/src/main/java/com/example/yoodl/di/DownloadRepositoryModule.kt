@@ -3,7 +3,6 @@ package com.example.yoodl.di
 // DownloadRepositoryModule.kt - Add this to your existing DatabaseModule or create new
 
 import android.content.Context
-import com.example.yoodl.data.database.YooDLDatabase
 import com.example.yoodl.data.database.dao.DownloadDao
 import com.example.yoodl.data.repository.DownloadRepositoryV2
 import dagger.Module

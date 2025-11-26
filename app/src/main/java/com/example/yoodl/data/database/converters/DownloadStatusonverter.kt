@@ -14,7 +14,7 @@ class DownloadStatusConverter {
     fun toDownloadStatus(statusString: String): DownloadStatus {
         return try {
             DownloadStatus.valueOf(statusString)
-        } catch (e: IllegalArgumentException) {
+        } catch (_: IllegalArgumentException) {
             DownloadStatus.FAILED
         }
     }

@@ -1,7 +1,5 @@
 package com.example.yoodl.ui.pages.downloads
 
-import android.content.Context
-import android.graphics.Bitmap
 import android.os.Environment
 import android.util.Log
 import androidx.compose.runtime.getValue
@@ -12,21 +10,22 @@ import androidx.lifecycle.viewModelScope
 import com.example.yoodl.data.models.DownloadItem
 import com.example.yoodl.data.models.DownloadQueue
 import com.example.yoodl.data.models.DownloadStatus
+import com.example.yoodl.data.models.UiEvent
 import com.example.yoodl.data.repository.DownloadRepositoryV2
 import com.yausername.youtubedl_android.YoutubeDL
 import com.yausername.youtubedl_android.YoutubeDLRequest
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.forEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import javax.inject.Inject
-import kotlin.plus
 
 @HiltViewModel
 class DownloadPageVM @Inject constructor(
@@ -45,7 +44,7 @@ class DownloadPageVM @Inject constructor(
 
     var currentDownload by mutableStateOf<DownloadQueue?>(null)
         private set
-
+    private var currentProcessId: String? = null
     var queuedDownloads by mutableStateOf<List<DownloadQueue>>(emptyList())
         private set
 
@@ -55,7 +54,9 @@ class DownloadPageVM @Inject constructor(
     var downloadedItemByType by mutableStateOf<List<DownloadItem>>(emptyList())
         private set
 
-    var showingSpeceficType by mutableStateOf(false)
+    var showingSpecificType by mutableStateOf(false)
+    var specificType by mutableStateOf("")
+    var loadingSpecificType by mutableStateOf(false)
     var nameOfShowingType by mutableStateOf("")
 
 
@@ -81,7 +82,7 @@ class DownloadPageVM @Inject constructor(
         viewModelScope.launch {
             dbRepo.insertDownload(item)
             queuedDownloads = queuedDownloads + item
-            Log.d("Download", "Inserted: ${item.id} with status ${item.status}")
+//            Log.d("Download", "Inserted: ${item.id} with status ${item.status}")
             if (currentDownload == null) {
                 processDownloadQueue()
             }
@@ -110,6 +111,25 @@ class DownloadPageVM @Inject constructor(
         }
     }
 
+    fun pauseDownload(downloadId: String) {
+        viewModelScope.launch {
+            // Destroy the YoutubeDL process first
+            currentProcessId?.let {
+                YoutubeDL.getInstance().destroyProcessById(it)
+//                Log.d("Download", "Destroyed process: $it")
+            }
+            currentProcessId = null
+            val pausedDownload = queuedDownloads.find { it.id == downloadId }
+                ?.copy(status = DownloadStatus.PAUSED, createdAt = System.currentTimeMillis())
+            if (pausedDownload != null)
+                queuedDownloads = queuedDownloads + pausedDownload
+            dbRepo.updateCreatedAtTimeStamp(downloadId = downloadId)
+            dbRepo.updateDownloadStatus(downloadId = downloadId, status = DownloadStatus.PAUSED)
+            updateCurrentDownload(null)
+            updateProgress(0f, 0L)
+        }
+    }
+
 
     fun removeFromQueue(downloadId: String) {
         queuedDownloads = queuedDownloads.filter { it.id != downloadId }
@@ -124,7 +144,7 @@ class DownloadPageVM @Inject constructor(
                             Log.d("Download", "No pending downloads")
                             return@launch
                         }
-                Log.d("Download", "processing...")
+//                Log.d("Download", "processing...")
                 queuedDownloads = queuedDownloads.map { item ->
                     if (item.id == currentItem.id) {
                         item.copy(status = DownloadStatus.DOWNLOADING)
@@ -190,8 +210,6 @@ class DownloadPageVM @Inject constructor(
                                 "bestvideo[height<=720]+bestaudio/best[height<=720]"
                             )
                         }
-//                        request.addOption("--postprocessor-args", "FFmpeg:-c:v copy -c:a aac")
-//                        request.addOption("--recode-video", "mp4")
 
                         request.addOption(
                             "-o",
@@ -199,14 +217,17 @@ class DownloadPageVM @Inject constructor(
                         )
 
                     }
+                    currentProcessId = currentItem.id
 
                     withContext(Dispatchers.IO) {
-                        YoutubeDL.getInstance().execute(request) { progress, eta, line ->
-                            Log.d("Download", "$progress% - ETA: ${eta}s - $line")
-                            updateProgress(progress, eta)
-                        }
+                        YoutubeDL.getInstance()
+                            .execute(request, currentItem.id) { progress, eta, line ->
+//                                Log.d("Download", "$progress% - ETA: ${eta}s - $line")
+                                updateProgress(progress, eta)
+                            }
                     }
 
+                    Log.d("Download", "continuing after cancel")
                     withContext(Dispatchers.IO) {
                         cleanupJsonFile(downloadDir)
                         deleteDownloadedThumbnails(downloadDir)
@@ -214,6 +235,7 @@ class DownloadPageVM @Inject constructor(
                     val outputFile = withContext(Dispatchers.IO) {
                         findLatestFile(downloadDir, currentItem.formatExt!!)
                     }
+                    showToast("Downloaded SuccessFully")
                     // ✅ Cache thumbnail and mark as completed
                     if (outputFile != null) {
                         withContext(Dispatchers.IO) {
@@ -242,6 +264,11 @@ class DownloadPageVM @Inject constructor(
 
                     removeFromQueue(currentItem.id)
 
+                } catch (_: YoutubeDL.CanceledException) {
+                    Log.d("Download", "Download process cancelled")
+                    removeFromQueue(currentItem.id)
+                    cleanupJsonFile(downloadDir)
+                    deleteDownloadedThumbnails(downloadDir)
                 } catch (e: Exception) {
                     Log.e("Download", "Error: ${e.message}")
                     updateCurrentDownload(currentItem.copy(status = DownloadStatus.FAILED))
@@ -255,10 +282,14 @@ class DownloadPageVM @Inject constructor(
                     dbRepo.markDownloadFailed(currentItem.id, e.message)
                 }
                 updateProgress(0f, 0L)
-                updateCurrentDownload(null)
                 kotlinx.coroutines.delay(500)
+
             }
+
+            updateCurrentDownload(null)
         }
+//        updateProgress(0f, 0L)
+//        updateCurrentDownload(null)
     }
 
     fun findLatestFile(downloadDir: File, ext: String): File? {
@@ -267,80 +298,44 @@ class DownloadPageVM @Inject constructor(
         return files.maxByOrNull { it.lastModified() }
     }
 
-    fun retryFailedDownload(downloadId: String) {
-        val failedItem = failedDownloads.find { it.id == downloadId }
-        if (failedItem != null) {
-            // Remove from failed list and add back to queue
-            failedDownloads = failedDownloads.filter { it.id != downloadId }
+//    fun retryFailedDownload(downloadId: String) {
+//        val failedItem = failedDownloads.find { it.id == downloadId }
+//        if (failedItem != null) {
+//            // Remove from failed list and add back to queue
+//            failedDownloads = failedDownloads.filter { it.id != downloadId }
+//
+//            // Reset status and retry count for new attempt
+//            val retryItem = failedItem.copy(status = DownloadStatus.PENDING)
+//            addToQueue(retryItem)
+//        }
+//    }
 
-            // Reset status and retry count for new attempt
-            val retryItem = failedItem.copy(status = DownloadStatus.PENDING)
-            addToQueue(retryItem)
-        }
-    }
-
-    fun removeFailedDownload(downloadId: String) {
-        failedDownloads = failedDownloads.filter { it.id != downloadId }
-        viewModelScope.launch {
-            dbRepo.deleteDownload(downloadId)
-        }
-    }
+//    fun removeFailedDownload(downloadId: String) {
+//        failedDownloads = failedDownloads.filter { it.id != downloadId }
+//        viewModelScope.launch {
+//            dbRepo.deleteDownload(downloadId)
+//        }
+//    }
 
 
     private fun loadQueuedDownloads() {
         viewModelScope.launch {
-            Log.d("Download", "Starting loadQueuedDownloads")
+//            Log.d("Download", "Starting loadQueuedDownloads")
 
             // 1. Find any stalled downloads (stuck as DOWNLOADING)
             val stalledDownloads = dbRepo.getDownloadsByStatusSync(DownloadStatus.DOWNLOADING)
             if (stalledDownloads.isNotEmpty()) {
-                Log.d(
-                    "Download",
-                    "Found ${stalledDownloads.size} stalled downloads, cleaning up..."
-                )
+
                 stalledDownloads.forEach { stalled ->
-                    Log.d("Download", "Cleaning up stalled: ${stalled.title}")
-                    val baseDownloadDir = File(
-                        Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
-                        "YooDL/${stalled.platform}"
-                    )
-
-
-                    // Get the correct download directory
-                    val downloadDir = if (stalled.isAudio) {
-                        File(baseDownloadDir, "audio")
-                    } else {
-                        File(baseDownloadDir, "video")
-                    }
-
-                    // Delete ALL files containing the stalled ID (incomplete files)
-                    if (downloadDir.exists()) {
-                        downloadDir.listFiles()?.forEach { file ->
-                            if (file.name.contains(stalled.id)) {
-                                file.delete()
-                                Log.d("Download", "Deleted incomplete: ${file.name}")
-                            }
-                        }
-                    }
-
-                    // Delete .info.json files
-                    downloadDir.listFiles { file ->
-                        file.name.contains(stalled.id) && file.name.endsWith(".info.json")
-                    }?.forEach { it.delete() }
-
-                    // Delete cached thumbnail
-                    dbRepo.deleteCachedThumbnail(stalled.id)
-
-                    // Reset to PENDING
                     dbRepo.updateDownloadStatus(stalled.id, DownloadStatus.PENDING)
-                    Log.d("Download", "Reset ${stalled.title} to PENDING")
+//                    Log.d("Download", "Reset ${stalled.title} to PENDING")
                 }
 
             }
 
             // 2. Load all PENDING downloads (including the ones we just reset)
             val pendingDownloads = dbRepo.getDownloadsByStatusSync(DownloadStatus.PENDING)
-            Log.d("Download", "Raw query result: ${pendingDownloads.size} items")
+//            Log.d("Download", "Raw query result: ${pendingDownloads.size} items")
 
             pendingDownloads.forEach { entity ->
                 dbRepo.updateDownloadStatus(entity.id, DownloadStatus.PAUSED)
@@ -366,10 +361,10 @@ class DownloadPageVM @Inject constructor(
                     formatExt = entity.formatExt
                 )
             }
-            Log.d("Download", "Queued downloads loaded: ${queuedDownloads.size}")
-            if (queuedDownloads.isNotEmpty()) {
-//                processDownloadQueue()
-            }
+//            Log.d("Download", "Queued downloads loaded: ${queuedDownloads.size}")
+//            if (queuedDownloads.isNotEmpty()) {
+////                processDownloadQueue()
+//            }
         }
     }
 
@@ -401,12 +396,14 @@ class DownloadPageVM @Inject constructor(
         viewModelScope.launch {
             dbRepo.updateCreatedAtTimeStamp(downloadId = downloadId)
             dbRepo.updateDownloadStatus(downloadId = downloadId, status = DownloadStatus.PENDING)
-            val failedDownload = dbRepo.getQueueDownloadById(downloadId = downloadId)
+            val failedDownload = failedDownloads.find { it.id == downloadId }
+                ?.copy(status = DownloadStatus.PENDING, createdAt = System.currentTimeMillis())
+
             if (failedDownload != null) {
                 queuedDownloads = queuedDownloads + failedDownload
-                failedDownloads =
-                    failedDownloads.filter { it.id != downloadId }  // ← Remove from failed
+                failedDownloads = failedDownloads.filter { it.id != downloadId }
             }
+            if (currentDownload == null) processDownloadQueue()
         }
     }
 
@@ -420,7 +417,7 @@ class DownloadPageVM @Inject constructor(
             jsonFiles.forEach { file ->
                 file.delete()
             }
-            Log.d("Download", "Cleanup complete - deleted ${jsonFiles.size} json files")
+//            Log.d("Download", "Cleanup complete - deleted ${jsonFiles.size} json files")
         } catch (e: Exception) {
             Log.e("Download", "Error during cleanup: ${e.message}")
         }
@@ -432,41 +429,69 @@ class DownloadPageVM @Inject constructor(
             ?.forEach { it.delete() }
     }
 
-    //    fun deleteDownload(downloadId: String) {
+
+//    fun logAllDownloads() {
 //        viewModelScope.launch {
-//            dbRepo.deleteDownload(downloadId)
-//            loadDownloadsFromDatabase()
+//            val allDownloads = dbRepo.getAllDownloads()
+//            allDownloads.collect { it ->
+//                it.forEach { item ->
+//                    Log.d(
+//                        "Download",
+//                        "Title: ${item.title} - Status: ${item.status} -platform ${item.platform} type: ${item.type}"
+//                    )
+//                }
+//            }
 //        }
 //    }
-    fun logAllDownloads() {
-        viewModelScope.launch {
-            val allDownloads = dbRepo.getAllDownloads()
-            allDownloads.collect { it ->
-                it.forEach { item ->
-                    Log.d("Download", "Title: ${item.title} - Status: ${item.status} -platform ${item.platform} type: ${item.type}")
+
+    fun getDownloadedItemByType(type: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            loadingSpecificType = true
+            nameOfShowingType = type
+            when (type) {
+                "audio", "video" -> {
+                    showingSpecificType = true
+                    downloadedItemByType = dbRepo.getDownloadsByType(type).first()
                 }
+
+                "instagram", "facebook", "youtube" -> {
+                    showingSpecificType = true
+                    downloadedItemByType = dbRepo.getDownloadsByPlatform(type).first()
+                }
+
+                "all" -> {
+                    showingSpecificType = false
+                    downloadedItemByType = emptyList()
+                }
+            }
+            loadingSpecificType = false
+        }
+    }
+
+
+    fun removeDownload(id: String,onDelete: () -> Unit){
+        viewModelScope.launch {
+            if(dbRepo.deleteDownload(id)) onDelete()
+        }
+    }
+    fun removeTypeDownload(id: String,onDelete: () -> Unit){
+        viewModelScope.launch {
+            if(dbRepo.deleteDownload(id)) {
+                onDelete()
+                downloadedItemByType = downloadedItemByType.filter { it.id != id }
             }
         }
     }
 
-    fun getDownloadedItemByType(type: String) {
-        viewModelScope.launch(Dispatchers.IO) {
-            nameOfShowingType = type
-            when(type) {
-                "audio", "video" -> {
-                    showingSpeceficType = true
-                    downloadedItemByType = dbRepo.getDownloadsByType(type).first()
-                }
-                "instagram", "facebook", "youtube" -> {
-                    showingSpeceficType = true
-                    downloadedItemByType = dbRepo.getDownloadsByPlatform(type).first()
-                }
-                "all" -> {
-                    showingSpeceficType = false
-                    downloadedItemByType = emptyList()
-                }
-            }
-        }
+    private val _uiEvent = MutableStateFlow<UiEvent?>(null)
+    val uiEvent: StateFlow<UiEvent?> = _uiEvent.asStateFlow()
+
+    fun showToast(message: String) {
+        _uiEvent.value = UiEvent.ShowToast(message)
+    }
+
+    fun clearToastEvent() {
+        _uiEvent.value = null
     }
 
 }

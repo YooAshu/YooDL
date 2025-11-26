@@ -1,6 +1,5 @@
 package com.example.yoodl.ui.pages.homepage.components
 
-import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -81,7 +80,7 @@ fun DownloadOptionsSheet(
                     item?.title ?: "Download",
                     maxLines = 2,
                     lineHeight = 18.sp,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis, color = Color.White
                 )
                 Text(
                     "by : ${item?.channelName ?: "Channel"}",
@@ -105,11 +104,13 @@ fun DownloadOptionsSheet(
                     .padding(16.dp),
                 contentAlignment = Alignment.Center
             ) {
-                CircularProgressIndicator()
+                CircularProgressIndicator(
+                    color = Color(0xFFFFFFFF)
+                )
             }
         } else {
 
-            Text("Download Audio", fontWeight = FontWeight.Bold)
+            Text("Download Audio", fontWeight = FontWeight.Bold, color = Color.White)
             val availableAudioFormats =
                 viewModel.getAudioFormats(videoId = item.id)
             Row(
@@ -157,7 +158,7 @@ fun DownloadOptionsSheet(
                 }
             }
 
-            Text("Download Video", fontWeight = FontWeight.Bold)
+            Text("Download Video", fontWeight = FontWeight.Bold, color = Color.White)
             val availableFormats =
                 viewModel.getVideoFormats(videoId = item.id)
             Row(

@@ -4,7 +4,6 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.media.MediaMetadataRetriever
-import android.os.Environment
 import android.util.Log
 import com.example.yoodl.data.database.dao.DownloadDao
 import com.example.yoodl.data.database.entities.DownloadItemEntity
@@ -17,17 +16,16 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import java.io.File
-import java.util.UUID
 import javax.inject.Inject
 
 class DownloadRepositoryV2 @Inject constructor(
     @ApplicationContext private val context: Context,
     private val downloadDao: DownloadDao
 ) {
-    private val baseDownloadDir = File(
-        Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
-        "YooDL/youtube"
-    )
+//    private val baseDownloadDir = File(
+//        Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
+//        "YooDL/youtube"
+//    )
 
     // ============ DOWNLOAD CRUD OPERATIONS ============
 
@@ -54,11 +52,11 @@ class DownloadRepositoryV2 @Inject constructor(
     }
 
 
-    suspend fun updateDownloadProgress(downloadId: String, progress: Float, eta: Long) {
-        withContext(Dispatchers.IO) {
-            downloadDao.updateDownloadProgress(downloadId, progress, eta)
-        }
-    }
+//    suspend fun updateDownloadProgress(downloadId: String, progress: Float, eta: Long) {
+//        withContext(Dispatchers.IO) {
+//            downloadDao.updateDownloadProgress(downloadId, progress, eta)
+//        }
+//    }
 
     suspend fun markDownloadCompleted(downloadId: String, filepath: String) {
         withContext(Dispatchers.IO) {
@@ -82,14 +80,14 @@ class DownloadRepositoryV2 @Inject constructor(
         }
     }
 
-    suspend fun markDownloadFailedToPending(downloadId: String) {
-        withContext(Dispatchers.IO) {
-            downloadDao.updateDownloadStatus(
-                downloadId = downloadId,
-                newStatus = DownloadStatus.PENDING
-            )
-        }
-    }
+//    suspend fun markDownloadFailedToPending(downloadId: String) {
+//        withContext(Dispatchers.IO) {
+//            downloadDao.updateDownloadStatus(
+//                downloadId = downloadId,
+//                newStatus = DownloadStatus.PENDING
+//            )
+//        }
+//    }
 
 
     suspend fun updateDownloadStatus(downloadId: String, status: DownloadStatus) {
@@ -120,11 +118,11 @@ class DownloadRepositoryV2 @Inject constructor(
 
     // ============ QUERY OPERATIONS ============
 
-    fun getAllDownloads(): Flow<List<DownloadItem>> {
-        return downloadDao.getAllDownloads().map { entities ->
-            entities.map { it.toDownloadItem(loadThumbnail(it.filePath, it.id)) }
-        }
-    }
+//    fun getAllDownloads(): Flow<List<DownloadItem>> {
+//        return downloadDao.getAllDownloads().map { entities ->
+//            entities.map { it.toDownloadItem(loadThumbnail(it.filePath, it.id)) }
+//        }
+//    }
 
     fun getDownloadsByStatus(status: DownloadStatus): Flow<List<DownloadItem>> {
         return downloadDao.getDownloadsByStatus(status).map { entities ->
@@ -150,15 +148,15 @@ class DownloadRepositoryV2 @Inject constructor(
         }
     }
 
-
-    fun getDownloadsByPlatformAndStatus(
-        platform: String,
-        status: DownloadStatus
-    ): Flow<List<DownloadItem>> {
-        return downloadDao.getDownloadsByPlatformAndStatus(platform, status).map { entities ->
-            entities.map { it.toDownloadItem(loadThumbnail(it.filePath, it.id)) }
-        }
-    }
+//
+//    fun getDownloadsByPlatformAndStatus(
+//        platform: String,
+//        status: DownloadStatus
+//    ): Flow<List<DownloadItem>> {
+//        return downloadDao.getDownloadsByPlatformAndStatus(platform, status).map { entities ->
+//            entities.map { it.toDownloadItem(loadThumbnail(it.filePath, it.id)) }
+//        }
+//    }
 
 //    fun getDownloadsByType(type: String): Flow<List<DownloadItem>> {
 //        return downloadDao.getAllDownloads().map { entities ->
@@ -167,12 +165,12 @@ class DownloadRepositoryV2 @Inject constructor(
 //        }
 //    }
 
-    suspend fun getQueueDownloadById(downloadId: String): DownloadQueue? {
-        return withContext(Dispatchers.IO) {
-            val entity = downloadDao.getDownloadById(downloadId)
-            entity?.toQueueItem()
-        }
-    }
+//    suspend fun getQueueDownloadById(downloadId: String): DownloadQueue? {
+//        return withContext(Dispatchers.IO) {
+//            val entity = downloadDao.getDownloadById(downloadId)
+//            entity?.toQueueItem()
+//        }
+//    }
     suspend fun updateCreatedAtTimeStamp(downloadId: String) {
         withContext(Dispatchers.IO) {
             downloadDao.updateCreatedAtTimestamp(downloadId)
@@ -218,7 +216,7 @@ class DownloadRepositoryV2 @Inject constructor(
             val cacheFile = File(context.cacheDir, "$cacheKey.jpg")
             if (!cacheFile.exists()) {
                 thumbnailBitmap.compress(Bitmap.CompressFormat.JPEG, 85, cacheFile.outputStream())
-                Log.d("Thumbnail", "Cached: ${cacheFile.absolutePath}")
+//                Log.d("Thumbnail", "Cached: ${cacheFile.absolutePath}")
             }
         } catch (e: Exception) {
             Log.e("Thumbnail", "Error caching: ${e.message}")
@@ -244,7 +242,7 @@ class DownloadRepositoryV2 @Inject constructor(
         val cacheFile = File(context.cacheDir, "$cacheKey.jpg")
 
         return if (cacheFile.exists()) {
-            Log.d("Thumbnail", "Loaded from cache: ${cacheFile.absolutePath}")
+//            Log.d("Thumbnail", "Loaded from cache: ${cacheFile.absolutePath}")
             BitmapFactory.decodeFile(cacheFile.absolutePath)
         } else {
             val thumbnail = if (file.extension == "mp3") {
@@ -276,36 +274,36 @@ class DownloadRepositoryV2 @Inject constructor(
             url = url
         )
     }
-    private fun DownloadItemEntity.toQueueItem(): DownloadQueue {
-        return DownloadQueue(
-            id = id,
-            title = title,
-            isAudio = isAudio,
-            filePath = filePath,
-            createdAt = System.currentTimeMillis() ,
-            thumbnail = thumbnail,
-            platform = platform,
-            status = status,
-            url = url,
-            formatId = formatId,
-            format = null,
-            formatExt = formatExt
-        )
-    }
+//    private fun DownloadItemEntity.toQueueItem(): DownloadQueue {
+//        return DownloadQueue(
+//            id = id,
+//            title = title,
+//            isAudio = isAudio,
+//            filePath = filePath,
+//            createdAt = System.currentTimeMillis() ,
+//            thumbnail = thumbnail,
+//            platform = platform,
+//            status = status,
+//            url = url,
+//            formatId = formatId,
+//            format = null,
+//            formatExt = formatExt
+//        )
+//    }
 
 
-    fun getFormattedFileSize(bytes: Long): String {
-        return when {
-            bytes >= 1024 * 1024 * 1024 -> String.format("%.2f GB", bytes / (1024.0 * 1024 * 1024))
-            bytes >= 1024 * 1024 -> String.format("%.2f MB", bytes / (1024.0 * 1024))
-            bytes >= 1024 -> String.format("%.2f KB", bytes / 1024.0)
-            else -> "$bytes B"
-        }
-    }
-
-    fun getFormattedDate(timestamp: Long): String {
-        val sdf = java.text.SimpleDateFormat("MMM dd, yyyy HH:mm", java.util.Locale.getDefault())
-        return sdf.format(java.util.Date(timestamp))
-    }
+//    fun getFormattedFileSize(bytes: Long): String {
+//        return when {
+//            bytes >= 1024 * 1024 * 1024 -> String.format("%.2f GB", bytes / (1024.0 * 1024 * 1024))
+//            bytes >= 1024 * 1024 -> String.format("%.2f MB", bytes / (1024.0 * 1024))
+//            bytes >= 1024 -> String.format("%.2f KB", bytes / 1024.0)
+//            else -> "$bytes B"
+//        }
+//    }
+//
+//    fun getFormattedDate(timestamp: Long): String {
+//        val sdf = java.text.SimpleDateFormat("MMM dd, yyyy HH:mm", java.util.Locale.getDefault())
+//        return sdf.format(java.util.Date(timestamp))
+//    }
 
 }

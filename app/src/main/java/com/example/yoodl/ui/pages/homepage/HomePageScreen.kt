@@ -1,9 +1,10 @@
 package com.example.yoodl.ui.pages.homepage
 
-import android.util.Log
 import android.widget.Toast
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -12,10 +13,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.TextSelectionColors
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
@@ -28,7 +31,6 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -38,15 +40,19 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.example.yoodl.R
 import com.example.yoodl.ui.pages.downloads.DownloadPageVM
 import com.example.yoodl.ui.pages.homepage.components.DownloadOptionsSheet
+import com.example.yoodl.ui.pages.homepage.components.InfoDialog
 import com.example.yoodl.ui.pages.homepage.components.ShowVideoInfo
 import com.example.yoodl.ui.pages.homepage.components.VioletBlurBackground
 
@@ -59,6 +65,7 @@ fun HomePageScreen(
     val context = LocalContext.current
     val sheetState = rememberModalBottomSheetState()
     var searchBarInput by remember { mutableStateOf("") }
+    var showInfoDialog by remember { mutableStateOf(false) }
 
     // Update when shared URL changes
     LaunchedEffect(viewModel.sharedUrl.value) {
@@ -72,8 +79,7 @@ fun HomePageScreen(
                         "Error fetching video info: ${e.message}",
                         Toast.LENGTH_LONG
                     ).show()
-                },
-                onSuccessPerVideo = {}
+                }
             )
         }
     }
@@ -85,6 +91,42 @@ fun HomePageScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.fillMaxSize()
         ) {
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Image(
+                            painter = painterResource(id = R.drawable.yoodl),
+                            contentDescription = "icon",
+                            modifier = Modifier.size(48.dp),
+                            contentScale = ContentScale.Fit
+                        )
+                        Spacer(Modifier.width(5.dp))
+                        Text(
+                            "YooDL",
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                            fontSize = 28.sp
+                        )
+                    }
+
+                    IconButton(onClick = {
+                        showInfoDialog = true
+                    }) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.outline_info_24),
+                            contentDescription = null,
+                            tint = Color.White
+                        )
+                    }
+                }
+            }
             item {
                 Box(
                     modifier = Modifier
@@ -100,7 +142,12 @@ fun HomePageScreen(
                             focusedBorderColor = Color.Transparent,
                             unfocusedBorderColor = Color.Transparent,
                             focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White.copy(0.8f)
+                            unfocusedTextColor = Color.White.copy(0.8f),
+                            cursorColor = Color.White,
+                            selectionColors = TextSelectionColors(
+                                handleColor = Color.White,
+                                backgroundColor = Color.White.copy(0.2f)
+                            ),
                         ),
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(22.dp),
@@ -124,9 +171,6 @@ fun HomePageScreen(
                                         "Error fetching video info: ${e.message}",
                                         Toast.LENGTH_LONG
                                     ).show()
-                                },
-                                onSuccessPerVideo = {
-                                    Log.d("HomePageScreen", it)
                                 }
                             )
                         } else {
@@ -154,7 +198,11 @@ fun HomePageScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.Search, contentDescription = null, tint = Color.White)
+                            Icon(
+                                Icons.Default.Search,
+                                contentDescription = null,
+                                tint = Color.White
+                            )
                             Spacer(Modifier.width(6.dp))
                             Text("Search", color = Color.White)
                         }
@@ -165,14 +213,16 @@ fun HomePageScreen(
 
             item {
                 if (viewModel.loadingYTVideosInfo) {
-                    Log.d("HomePageScreen", "Loading... ${viewModel.loadingYTVideosInfo}")
+//                    Log.d("HomePageScreen", "Loading... ${viewModel.loadingYTVideosInfo}")
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(16.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        CircularProgressIndicator()
+                        CircularProgressIndicator(
+                            color = Color(0xFFFFFFFF)
+                        )
                     }
                 }
             }
@@ -183,7 +233,7 @@ fun HomePageScreen(
                         Text(
                             "Playlist: ${viewModel.playListName} (${viewModel.ytVideosInfoEntries.size} videos)",
                             fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(16.dp)
+                            modifier = Modifier.padding(16.dp), color = Color.White
                         )
                 }
                 items(viewModel.ytVideosInfoEntries) { item ->
@@ -209,15 +259,19 @@ fun HomePageScreen(
                 onDismiss = { viewModel.showDownloadSheet = false },
                 onQueue = { queueItem ->
                     downloadPageVM.addToQueue(queueItem)
+//                    Toast.makeText(context, "Added to queue", Toast.LENGTH_SHORT).show()
                 },
                 item = viewModel.bottomSheetCurrentVideo
             )
         }
 
     }
+    if (showInfoDialog) {
+        InfoDialog(onDismiss = { showInfoDialog = false })
+    }
 }
 
-fun Modifier.glassCard(corner:Int=30): Modifier = this
+fun Modifier.glassCard(corner: Int = 30): Modifier = this
     .clip(RoundedCornerShape(corner.dp))
     .background(Color.White.copy(alpha = 0.08f))
     .border(

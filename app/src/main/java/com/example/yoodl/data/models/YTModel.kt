@@ -61,3 +61,4 @@ sealed class SocialMediaPlatform {
     object Facebook : SocialMediaPlatform()
     object Unknown : SocialMediaPlatform()
 }
+

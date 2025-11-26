@@ -17,13 +17,13 @@ data class DownloadItem(
 )
 
 
-data class DownloadProgress(
-    val id: String,
-    val title: String,
-    val progress: Int,
-    val eta: Long,
-    val status: String
-)
+//data class DownloadProgress(
+//    val id: String,
+//    val title: String,
+//    val progress: Int,
+//    val eta: Long,
+//    val status: String
+//)
 
 
 data class DownloadQueue(
@@ -61,4 +61,9 @@ data class YtData(
     val channelName: String = "",
     val platform: String = "youtube"
 )
+
+sealed class UiEvent {
+    data class ShowToast(val message: String) : UiEvent()
+    object HideToast : UiEvent()
+}
 
