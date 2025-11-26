@@ -121,8 +121,10 @@ class DownloadPageVM @Inject constructor(
             currentProcessId = null
             val pausedDownload = queuedDownloads.find { it.id == downloadId }
                 ?.copy(status = DownloadStatus.PAUSED, createdAt = System.currentTimeMillis())
-            if (pausedDownload != null)
+            if (pausedDownload != null) {
+                removeFromQueue(pausedDownload.id)
                 queuedDownloads = queuedDownloads + pausedDownload
+            }
             dbRepo.updateCreatedAtTimeStamp(downloadId = downloadId)
             dbRepo.updateDownloadStatus(downloadId = downloadId, status = DownloadStatus.PAUSED)
             updateCurrentDownload(null)
@@ -266,7 +268,6 @@ class DownloadPageVM @Inject constructor(
 
                 } catch (_: YoutubeDL.CanceledException) {
                     Log.d("Download", "Download process cancelled")
-                    removeFromQueue(currentItem.id)
                     cleanupJsonFile(downloadDir)
                     deleteDownloadedThumbnails(downloadDir)
                 } catch (e: Exception) {
